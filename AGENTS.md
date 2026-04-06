@@ -48,3 +48,22 @@ npx tsx evals/scripts/check-env.ts --cases nanobot-exectool-regex
 # Run evals with multiple trials
 npx tsx evals/scripts/run-eval.ts --trials 3 --cases pydantic-importstring-error
 ```
+
+<!-- BEGIN FIRST-TREE-SOURCE-INTEGRATION -->
+FIRST-TREE-SOURCE-INTEGRATION: dedicated tree repo `ADHD-tree`
+FIRST-TREE-TREE-REPO-URL: `https://github.com/agent-team-foundation/first-tree-context.git`
+FIRST-TREE-LOCAL-TREE-CONFIG: `.first-tree/local-tree.json`
+
+This repo is a source/workspace repo. Keep all Context Tree files only in the dedicated `first-tree-context` repo.
+
+Before every task:
+- Read `.first-tree/local-tree.json` first. If it exists, resolve its `localPath` value from this repo root and treat that checkout as the canonical local tree repo.
+- If that configured checkout exists locally, update it before you read anything else.
+- If the configured checkout is missing, clone a temporary working copy from `https://github.com/agent-team-foundation/first-tree-context.git` into `.first-tree/tmp/first-tree-context/`, use it for the current task, and delete it before you finish.
+- Never commit `.first-tree/local-tree.json` or anything under `.first-tree/tmp/` to this repo. They are local-only workspace state.
+
+After every task:
+- Always ask whether the tree needs updating.
+- If the task changed decisions, constraints, rationale, or ownership, open a PR in the tree repo first. Then open the source/workspace code PR.
+- If the task changed only implementation details, skip the tree PR and open only the source/workspace code PR.
+<!-- END FIRST-TREE-SOURCE-INTEGRATION -->
