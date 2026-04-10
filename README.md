@@ -9,26 +9,16 @@ cross-domain relationships that agents and humans keep current together.
 
 ## Quick Start For Agents
 
-Paste one of these into your agent (Claude Code, Codex, or any agents that you are using) from the root you want to onboard:
+Paste one of these into your agent (Claude Code, Codex, or any agent you are using) from the root you want to onboard. You only need to decide whether your team needs a new tree or should join an existing one. The agent should inspect the current folder and decide whether it is onboarding a single repo or a multi-repo workspace.
 
-If you are working on a single codebase without context tree setup:
+If you are the first person on your team to set up a Context Tree:
 ```text
-Use the latest first-tree CLI (https://github.com/agent-team-foundation/first-tree) to install the skill in the current repository and complete the onboarding process.
+Use the latest first-tree CLI (https://github.com/agent-team-foundation/first-tree). First run `first-tree inspect --json` to determine whether the current folder is a single repo or a multi-repo workspace. Then install the skill in the current repo or workspace root and complete the onboarding process by creating the appropriate new Context Tree setup for this team.
 ```
 
-If you are working on a single codebase and want to connect it to an existing context tree repo:
+If your team already has a Context Tree:
 ```text
-Use the latest first-tree CLI (https://github.com/agent-team-foundation/first-tree) to install the skill in the current repository and complete the onboarding process by using `https://github.com/<your-organization>/<your-tree-repo-name>` as shared context tree.
-```
-
-If you are working on a workspace with multiple repos without context tree setup:
-```text
-Use the latest first-tree CLI (https://github.com/agent-team-foundation/first-tree) to install the skill in the current folder, build a shared context tree repo and onboard all the repos in the current folder to that shared context tree.
-```
-
-If you are working on a workspace with multiple repos and want to connect them to an existing context tree repo:
-```text
-Use the latest first-tree CLI (https://github.com/agent-team-foundation/first-tree) to install the skill in the current folder, and complete the onboarding process for all the repos in the current folder by using `https://github.com/<your-organization>/<your-tree-repo-name>` as shared context tree.
+Use the latest first-tree CLI (https://github.com/agent-team-foundation/first-tree). First run `first-tree inspect --json` to determine whether the current folder is a single repo or a multi-repo workspace. Then install the skill in the current repo or workspace root and complete the onboarding process by connecting this repo or workspace to the existing shared Context Tree at `https://github.com/<your-organization>/<your-tree-repo-name>`.
 ```
 
 ## Install And Run
