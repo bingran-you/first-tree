@@ -23,3 +23,4 @@ dist/
 *.tsbuildinfo
 .first-tree/local-tree.json
 .first-tree/tmp/
+/.claude/worktrees
