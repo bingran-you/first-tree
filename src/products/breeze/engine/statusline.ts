@@ -16,7 +16,7 @@
  *
  * Input: swallow stdin (Claude Code statusline hooks receive JSON).
  * Output: a single line to stdout, e.g.
- *   `/breeze: ⚠ 2 need you · 52 PRs · 3 issues (+1 new)`
+ *   `/breeze: ⚠ 2 need-you · 52 PRs · 3 issues (+1 new)`
  * or nothing when the inbox is empty/missing.
  */
 
@@ -181,9 +181,9 @@ export function renderStatusline(
   counts: Counts,
   prior: BellState | null,
 ): { line: string | null; ring: boolean } {
-  const humanPart = counts.human > 0 ? `⚠ ${counts.human} need you · ` : "";
+  const humanPart = `⚠ ${counts.human} need-you · `;
   const newSummary = formatNewSummary(counts.new_by_type);
-  const hasContent = humanPart.length > 0 || newSummary.length > 0;
+  const hasContent = newSummary.length > 0 || counts.human >= 0;
   if (!hasContent) return { line: null, ring: false };
 
   let suffix = "";
@@ -191,7 +191,7 @@ export function renderStatusline(
   if (prior && prior.prevPoll !== counts.last_poll) {
     if (counts.human > prior.prevHuman) {
       const diff = counts.human - prior.prevHuman;
-      suffix = ` (+${diff} needs you)`;
+      suffix = ` (+${diff} need-you)`;
       ring = true;
     } else if (counts.new > prior.prevNew) {
       const diff = counts.new - prior.prevNew;

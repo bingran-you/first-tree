@@ -142,15 +142,15 @@ const Header = ({ counts }: HeaderProps): React.ReactElement => (
       <Text>  </Text>
       {counts.human > 0 ? (
         <Text color={COLOR.red} bold>
-          ● {counts.human} human
+          ● {counts.human} need-you
         </Text>
       ) : (
-        <Text color={COLOR.dim}>● 0 human  </Text>
+        <Text color={COLOR.dim}>● 0 need-you  </Text>
       )}
       <Text color={COLOR.orange}>● {counts.new} new  </Text>
       <Text color={COLOR.blue}>● {counts.wip} wip  </Text>
       <Text color={COLOR.green} dimColor>
-        ● {counts.done} done
+        ● {counts.done} finished
       </Text>
     </Box>
     <Text> </Text>
@@ -176,7 +176,7 @@ const HumanSection = ({ inbox }: HumanSectionProps): React.ReactElement => {
       <Box flexDirection="column">
         <Box>
           <Text color={COLOR.red} bold>
-            ▶ HUMAN
+            ▶ NEED-YOU
           </Text>
           <Text color={COLOR.dim}>
             {"  (0) — ✨ nothing needs you right now"}
@@ -190,7 +190,7 @@ const HumanSection = ({ inbox }: HumanSectionProps): React.ReactElement => {
     <Box flexDirection="column">
       <Box>
         <Text color={COLOR.red} bold>
-          ▶ HUMAN
+          ▶ NEED-YOU
         </Text>
         <Text bold>{`  (${humans.length})`}</Text>
         <Text color={COLOR.dim}> — you block these</Text>
@@ -249,7 +249,7 @@ const Board = ({ inbox }: BoardProps): React.ReactElement | null => {
           <Box>
             <Text bold>{shortRepo(g.repo)}</Text>
             <Text color={COLOR.dim}>
-              {` (${g.open} open · ${g.done.length} done)`}
+              {` (${g.open} active · ${g.done.length} finished)`}
             </Text>
           </Box>
           {g.wip.length > 0 ? (
@@ -290,7 +290,7 @@ const Board = ({ inbox }: BoardProps): React.ReactElement | null => {
           ) : null}
           {g.done.length > 0 ? (
             <Text color={COLOR.green} dimColor>
-              {`  ○ DONE (${g.done.length}) — collapsed`}
+              {`  ○ FINISHED (${g.done.length}) — collapsed`}
             </Text>
           ) : null}
           <Text> </Text>
