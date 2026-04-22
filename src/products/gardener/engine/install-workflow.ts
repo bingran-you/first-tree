@@ -49,8 +49,11 @@ Next steps after install:
   1. Set the TREE_REPO_TOKEN and ANTHROPIC_API_KEY secrets on this
      repo (see skills/first-tree/references/workflow-mode.md for the
      gh-auth-based quick path and the caveats).
-  2. Commit and open a PR for the new workflow file.
-  3. Verify the workflow runs once the PR is merged.
+  2. Set the ANTHROPIC_API_KEY secret on this repo. Without it,
+     gardener comment refuses to post (PR #255) — this is the
+     intended fail-closed behaviour when no classifier is wired.
+  3. Commit and open a PR for the new workflow file.
+  4. Verify the workflow runs once the PR is merged.
 `;
 
 export interface InstallWorkflowDeps {
@@ -172,6 +175,11 @@ jobs:
       TREE_REPO_TOKEN: \${{ secrets.TREE_REPO_TOKEN }}
       ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
       GH_TOKEN: \${{ github.token }}
+      # Optional: when set, gardener comment posts an AI-classified verdict.
+      # When unset, gardener comment refuses to post (see PR #255). Set
+      # ANTHROPIC_API_KEY as a repo secret to enable posting.
+      ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+      GARDENER_CLASSIFIER_MODEL: \${{ secrets.GARDENER_CLASSIFIER_MODEL }}
     steps:
       - name: Checkout source repo
         uses: actions/checkout@v4
@@ -297,9 +305,18 @@ export async function runInstallWorkflow(
   write(
     `     The token needs \`issues:write\` and \`contents:read\` on ${flags.treeRepo}.`,
   );
-  write("  2. Commit and open a PR for the new workflow file.");
   write(
-    "  3. Merge a test PR on the codebase and confirm an issue opens on",
+    "  2. Set ANTHROPIC_API_KEY on this repo. Without it, gardener comment",
+  );
+  write(
+    "     refuses to post (PR #255 fail-closed). Quick path:",
+  );
+  write(
+    `       gh secret set ANTHROPIC_API_KEY --repo <codebase-owner>/<repo>`,
+  );
+  write("  3. Commit and open a PR for the new workflow file.");
+  write(
+    "  4. Merge a test PR on the codebase and confirm an issue opens on",
   );
   write(`     https://github.com/${flags.treeRepo}/issues`);
 
