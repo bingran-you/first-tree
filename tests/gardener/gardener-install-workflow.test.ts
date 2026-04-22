@@ -85,13 +85,15 @@ describe("gardener install-workflow — yaml builder", () => {
       nodeVersion: "22",
     });
     expect(yaml).toContain("name: First-Tree Sync");
+    expect(yaml).toContain("persist-credentials: false");
     expect(yaml).toContain('tree_repo_url="https://github.com/acme/tree.git"');
     expect(yaml).toContain('tree_repo_dir=".first-tree-cache/tree"');
     expect(yaml).toContain("clone --depth 1");
-    expect(yaml).toContain('if git clone --depth 1 "$tree_repo_url" "$tree_repo_dir"; then');
+    expect(yaml).toContain('if GIT_TERMINAL_PROMPT=0 GIT_ASKPASS= SSH_ASKPASS= git');
+    expect(yaml).toContain('-c http.https://github.com/.extraheader=');
     expect(yaml).toContain('if [ -z "${TREE_REPO_TOKEN:-}" ]; then');
     expect(yaml).toContain('askpass_script="$RUNNER_TEMP/first-tree-git-askpass.sh"');
-    expect(yaml).toContain("GIT_ASKPASS=\"$askpass_script\" git clone --depth 1");
+    expect(yaml).toContain("GIT_ASKPASS=\"$askpass_script\" git -c credential.helper= clone --depth 1");
     expect(yaml).toContain('node-version: "22"');
     expect(yaml).toContain("--assign-owners");
     expect(yaml).toContain(
@@ -134,8 +136,9 @@ describe("gardener install-workflow — runInstallWorkflow", () => {
     const target = join(tmp.path, ".github/workflows/first-tree-sync.yml");
     expect(existsSync(target)).toBe(true);
     const body = readFileSync(target, "utf-8");
+    expect(body).toContain("persist-credentials: false");
     expect(body).toContain('tree_repo_url="https://github.com/acme/tree.git"');
-    expect(body).toContain('if git clone --depth 1 "$tree_repo_url" "$tree_repo_dir"; then');
+    expect(body).toContain('if GIT_TERMINAL_PROMPT=0 GIT_ASKPASS= SSH_ASKPASS= git');
     expect(body).toContain('askpass_script="$RUNNER_TEMP/first-tree-git-askpass.sh"');
     expect(lines.some((l) => l.includes("wrote"))).toBe(true);
     expect(lines.some((l) => l.includes("TREE_REPO_TOKEN"))).toBe(true);
