@@ -15,6 +15,7 @@ import {
   parseAllowRepoArg,
   requireExplicitRepoFilter,
 } from "../runtime/allow-repo.js";
+import { findServiceLock, isLockStale } from "../daemon/claim.js";
 import { resolveDaemonIdentity } from "../daemon/identity.js";
 import {
   bootstrapLaunchdJob,
@@ -78,6 +79,42 @@ export async function runStart(
     return 1;
   }
 
+  // #293: detect a live daemon and refuse to silently no-op. The bootstrap
+  // path below is idempotent at the launchd level, but it doesn't update
+  // the running process's allow-list — users kept running `breeze start`
+  // with a new --allow-repo and seeing no effect. Fail loudly so the user
+  // knows to stop first.
+  const existingLock = findServiceLock(
+    `${home}/locks`,
+    {
+      host: config.host,
+      login: identity.login,
+      scopes: [],
+      gitProtocol: "",
+    },
+    profile,
+  );
+  if (existingLock && !isLockStale(existingLock)) {
+    const stopCmd = formatStopCommand({
+      home: options.runnerHome ?? parseHome(argv),
+      profile: options.profile ?? parseProfile(argv),
+    });
+    write(
+      `breeze: daemon already running (pid ${existingLock.pid}).`,
+    );
+    write(
+      "  The live daemon's --allow-repo list is baked in at start time and",
+    );
+    write(
+      "  will not update if you edit ~/.breeze/config.yaml or re-run `start`.",
+    );
+    write(
+      `  Run \`${stopCmd}\` first, then re-run \`start\` with the`,
+    );
+    write("  full --allow-repo csv.");
+    return 1;
+  }
+
   const logsDir = join(home, "logs");
   mkdirSync(logsDir, { recursive: true });
   const nowSec = Math.floor(Date.now() / 1_000);
@@ -130,6 +167,29 @@ export async function runStart(
   write(`pid: ${child.pid}`);
   write(`log: ${logPath}`);
   return 0;
+}
+
+/**
+ * Build the `breeze stop` suggestion shown when we refuse to start
+ * because a live daemon is already running. If the current invocation
+ * resolved a non-default `--home`/`--profile`, surface those flags so
+ * the user targets the same runner instead of silently stopping the
+ * default one.
+ */
+function formatStopCommand(opts: {
+  home?: string;
+  profile?: string;
+}): string {
+  const parts = ["first-tree breeze stop"];
+  if (opts.home) parts.push(`--home ${shellQuote(opts.home)}`);
+  if (opts.profile && opts.profile !== "default") {
+    parts.push(`--profile ${shellQuote(opts.profile)}`);
+  }
+  return parts.join(" ");
+}
+
+function shellQuote(v: string): string {
+  return /^[\w@%+=:,./-]+$/.test(v) ? v : `'${v.replace(/'/g, `'\\''`)}'`;
 }
 
 function parseHome(argv: readonly string[]): string | undefined {
