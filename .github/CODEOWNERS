@@ -1,7 +1,0 @@
-# Canonical skill source of truth
-/skills/tree/ @bingran-you
-/skills/breeze/ @bingran-you
-
-# Validation and ownership metadata
-/.github/CODEOWNERS @bingran-you
-/.github/workflows/ci.yml @bingran-you
