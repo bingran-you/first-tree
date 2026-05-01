@@ -1,27 +1,68 @@
 /**
- * Auto product dispatcher.
+ * GitHub Scan / auto dispatcher.
  *
- * As of Phase 8 every auto subcommand runs on the TypeScript daemon.
+ * As of Phase 8 every scan subcommand runs on the TypeScript daemon.
  * `run` / `run-once` / `daemon` all route through `daemon/runner-skeleton.ts`;
- * the historical `auto-runner` Rust binary and the `--backend=` flag
- * have been retired.
- *
- * Lifecycle + diagnostic subcommands (Phase 6): `start`, `stop`,
- * `status`, `doctor`, `cleanup`, `poll-inbox`.
- *
- * Foreground loops (Phase 8): `run` = TS daemon forever; `run-once` =
- * one poll cycle + drain + exit. `daemon` is an alias for `run`.
+ * the historical Rust backend and the `--backend=` flag have been retired.
  *
  * Heavy deps (child_process, ink, react, daemon modules) live in the
- * dynamically-imported command modules so `first-tree auto --help`
- * and `first-tree tree ...` stay lightweight.
+ * dynamically-imported command modules so help output stays lightweight.
  */
 
+type ScanCliBrand = {
+  bindingHelp?: string;
+  commandPath: string;
+  daemonLabel: string;
+  errorPrefix: string;
+  headlineName: string;
+  homeEnv: string;
+  installLabel: string;
+  introDescription: string;
+  runnerHome: string;
+  storeDirEnv: string;
+  storeRoot: string;
+  supportsTreeRepoOption: boolean;
+};
 
-export const AUTO_USAGE = `usage: first-tree auto <command>
+const AUTO_BRAND: ScanCliBrand = {
+  commandPath: "first-tree auto",
+  daemonLabel: "auto daemon",
+  errorPrefix: "first-tree auto",
+  headlineName: "Auto",
+  homeEnv: "AUTO_HOME",
+  installLabel: "auto install",
+  introDescription: "proposal/inbox agent",
+  runnerHome: "~/.first-tree/auto/runner",
+  storeDirEnv: "AUTO_DIR",
+  storeRoot: "~/.first-tree/auto",
+  supportsTreeRepoOption: false,
+};
 
-  Auto is the proposal/inbox agent. It polls explicit GitHub review
-  requests and direct mentions, keeps a local inbox under \`~/.first-tree/auto/\`,
+const GITHUB_SCAN_BRAND: ScanCliBrand = {
+  bindingHelp:
+    "  install/start/run/daemon/run-once/poll resolve the Context Tree from\n" +
+    "  `.first-tree/source.json` or `--tree-repo <owner/repo>`. Missing\n" +
+    "  bindings fail closed so scan never runs without tree context.\n",
+  commandPath: "first-tree github scan",
+  daemonLabel: "GitHub Scan daemon",
+  errorPrefix: "first-tree github scan",
+  headlineName: "GitHub Scan",
+  homeEnv: "AUTO_HOME",
+  installLabel: "GitHub Scan install",
+  introDescription: "GitHub automation and inbox agent",
+  runnerHome: "~/.first-tree/auto/runner",
+  storeDirEnv: "AUTO_DIR",
+  storeRoot: "~/.first-tree/auto",
+  supportsTreeRepoOption: true,
+};
+
+function buildUsage(brand: ScanCliBrand): string {
+  const bindingBlock = brand.bindingHelp === undefined ? "" : `\nBinding:\n${brand.bindingHelp}`;
+
+  return `usage: ${brand.commandPath} <command>
+
+  ${brand.headlineName} is the ${brand.introDescription}. It polls explicit GitHub review
+  requests and direct mentions, keeps a local inbox under \`${brand.storeRoot}/\`,
   and dispatches work to per-task agent runners.
 
 Primary commands (start here):
@@ -43,14 +84,13 @@ Advanced commands (for agents or debugging):
   run-once              Run one poll cycle, wait for drain, exit. Requires
                         \`--allow-repo\`.
   cleanup               Remove stale workspaces + expired claims
-                        (only run if \`doctor\` suggests it).
-
+                        (only run if \`doctor\` suggests it).${bindingBlock}
 Options:
   --help, -h            Show this help message
 
 Environment:
-  AUTO_DIR              Override \`~/.first-tree/auto\` (store root)
-  AUTO_HOME             Override \`~/.first-tree/auto/runner\` (daemon private state)
+  ${brand.storeDirEnv}              Override \`${brand.storeRoot}\` (store root)
+  ${brand.homeEnv}             Override \`${brand.runnerHome}\` (daemon private state)
 
 Not shown above (hook/internal entry points — do not invoke directly):
   statusline            Claude Code statusline hook. Called by Claude Code via
@@ -60,57 +100,69 @@ Not shown above (hook/internal entry points — do not invoke directly):
                         session status entries. No direct human/agent use.
   poll-inbox            Legacy alias for \`poll\`. Kept for existing scripts.
 `;
+}
 
-const AUTO_INLINE_HELP: Partial<Record<string, string>> = {
-  run: `usage: first-tree auto run [options]
+function buildTreeRepoOption(brand: ScanCliBrand): string {
+  if (!brand.supportsTreeRepoOption) {
+    return "";
+  }
 
-  Run the auto daemon in the foreground until stopped.
+  return "    --tree-repo <owner/repo>     Override the bound Context Tree repo\n";
+}
+
+function buildInlineHelp(brand: ScanCliBrand): Partial<Record<string, string>> {
+  const treeRepoOption = buildTreeRepoOption(brand);
+
+  return {
+    run: `usage: ${brand.commandPath} run [options]
+
+  Run the ${brand.daemonLabel} in the foreground until stopped.
 
   Common options:
     --allow-repo <csv>           Required: restrict work to owner/repo or owner/* patterns
-    --poll-interval-secs <n>     Seconds between poll cycles
+${treeRepoOption}    --poll-interval-secs <n>     Seconds between poll cycles
     --task-timeout-secs <n>      Per-task timeout
     --max-parallel <n>           Max concurrent agent tasks
     --search-limit <n>           Max search-derived candidates per cycle
 `,
-  daemon: `usage: first-tree auto daemon [options]
+    daemon: `usage: ${brand.commandPath} daemon [options]
 
-  Alias for \`first-tree auto run\`. Still requires \`--allow-repo\`.
+  Alias for \`${brand.commandPath} run\`. Still requires \`--allow-repo\`.
 `,
-  "run-once": `usage: first-tree auto run-once [options]
+    "run-once": `usage: ${brand.commandPath} run-once [options]
 
   Run one inbox poll plus one candidate-search cycle, wait for queued
   agent work to drain, then exit.
 
   Options:
     --allow-repo <csv>           Required: restrict work to owner/repo or owner/* patterns
-`,
-  watch: `usage: first-tree auto watch
+${treeRepoOption}`,
+    watch: `usage: ${brand.commandPath} watch
 
   Open the interactive TUI status board and activity feed.
 `,
-  statusline: `usage: first-tree auto statusline
+    statusline: `usage: ${brand.commandPath} statusline
 
   Print the one-line Claude Code statusline summary.
 `,
-  start: `usage: first-tree auto start [options]
+    start: `usage: ${brand.commandPath} start [options]
 
-  Launch the auto daemon in the background.
+  Launch the ${brand.daemonLabel} in the background.
 
   Options:
     --home <path>                Override runner home
     --profile <name>             Override daemon profile
     --allow-repo <csv>           Required: restrict work to owner/repo or owner/* patterns
-`,
-  stop: `usage: first-tree auto stop [options]
+${treeRepoOption}`,
+    stop: `usage: ${brand.commandPath} stop [options]
 
-  Stop the background auto daemon for the active identity.
+  Stop the background ${brand.daemonLabel} for the active identity.
 
   Options:
     --home <path>                Override runner home
     --profile <name>             Override daemon profile
 `,
-  status: `usage: first-tree auto status [options]
+    status: `usage: ${brand.commandPath} status [options]
 
   Print the current daemon lock and runtime status.
 
@@ -118,21 +170,28 @@ const AUTO_INLINE_HELP: Partial<Record<string, string>> = {
     --home <path>                Override runner home
     --allow-repo <csv>           Display an explicit repo filter
 `,
-  doctor: `usage: first-tree auto doctor [options]
+    doctor: `usage: ${brand.commandPath} doctor [options]
 
-  Diagnose the local auto install and auth/runtime state.
+  Diagnose the local ${brand.installLabel} and auth/runtime state.
 
   Options:
     --home <path>                Override runner home
 `,
-  cleanup: `usage: first-tree auto cleanup [options]
+    cleanup: `usage: ${brand.commandPath} cleanup [options]
 
   Remove stale workspaces and expired claims.
 
   Options:
     --home <path>                Override runner home
 `,
-};
+  };
+}
+
+export const AUTO_USAGE = buildUsage(AUTO_BRAND);
+export const GITHUB_SCAN_USAGE = buildUsage(GITHUB_SCAN_BRAND);
+
+const AUTO_INLINE_HELP = buildInlineHelp(AUTO_BRAND);
+const GITHUB_SCAN_INLINE_HELP = buildInlineHelp(GITHUB_SCAN_BRAND);
 
 type Output = (text: string) => void;
 
@@ -220,14 +279,22 @@ function isHelpInvocation(args: readonly string[]): boolean {
   return first === "--help" || first === "-h" || first === "help";
 }
 
-export async function runAuto(
-  args: string[],
-  output: Output = console.log,
-): Promise<number> {
+export async function runAuto(args: string[], output: Output = console.log): Promise<number> {
+  return runScan(args, output, AUTO_BRAND);
+}
+
+export async function runGitHubScan(args: string[], output: Output = console.log): Promise<number> {
+  return runScan(args, output, GITHUB_SCAN_BRAND);
+}
+
+async function runScan(args: string[], output: Output, brand: ScanCliBrand): Promise<number> {
   const write = (text: string): void => output(text);
+  const usage = brand.commandPath === AUTO_BRAND.commandPath ? AUTO_USAGE : GITHUB_SCAN_USAGE;
+  const inlineHelp =
+    brand.commandPath === AUTO_BRAND.commandPath ? AUTO_INLINE_HELP : GITHUB_SCAN_INLINE_HELP;
 
   if (args.length === 0 || isHelpInvocation(args)) {
-    write(AUTO_USAGE);
+    write(usage);
     return 0;
   }
 
@@ -236,14 +303,15 @@ export async function runAuto(
   const target = DISPATCH[command];
 
   if (!target) {
-    write(`Unknown auto command: ${command}`);
-    write(AUTO_USAGE);
+    write(`Unknown ${brand.commandPath.replace("first-tree ", "")} command: ${command}`);
+    write(usage);
     return 1;
   }
 
-  const inlineHelp = AUTO_INLINE_HELP[command];
-  if (inlineHelp && isHelpInvocation(rest)) {
-    write(inlineHelp);
+  const commandInlineHelp = inlineHelp[command];
+
+  if (commandInlineHelp && isHelpInvocation(rest)) {
+    write(commandInlineHelp);
     return 0;
   }
 
@@ -271,7 +339,7 @@ export async function runAuto(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`first-tree auto: ${message}\n`);
+    process.stderr.write(`${brand.errorPrefix}: ${message}\n`);
     return 1;
   }
 }
@@ -280,10 +348,7 @@ export async function runAuto(
  * Lazy-import the TS command implementation so startup stays cheap for
  * workflows that never touch the ported commands.
  */
-async function dispatchTsCommand(
-  specifier: TsSpecifier,
-  rest: string[],
-): Promise<number> {
+async function dispatchTsCommand(specifier: TsSpecifier, rest: string[]): Promise<number> {
   switch (specifier) {
     case "status-manager":
       return (await import("./commands/status-manager.js")).runStatusManager(rest);

@@ -2,8 +2,8 @@
   "name": "@first-tree/auto",
   "version": "0.3.0",
   "private": true,
-  "type": "module",
-  "main": "./src/index.ts",
+  "description": "Internal implementation package for the public `first-tree github scan` command.",
+  "license": "Apache-2.0",
   "files": [
     "src",
     "dist",
@@ -11,6 +11,8 @@
     "skills",
     "VERSION"
   ],
+  "type": "module",
+  "main": "./src/index.ts",
   "scripts": {
     "build": "tsdown",
     "prepack": "pnpm build",

@@ -1,14 +1,18 @@
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { Command, CommanderError } from "commander";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { withCommandContext } from "../src/commands/context.js";
-import { initCommand } from "../src/commands/init.js";
+import { inspectCurrentWorkingTree } from "../src/commands/tree/inspect.js";
 import { statusCommand as treeStatusCommand } from "../src/commands/tree/status.js";
 import type { CommandAction, CommandContext, GlobalOptions } from "../src/commands/types.js";
 import { createProgram, main } from "../src/index.js";
 
-const runAutoMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
-vi.mock("@first-tree/auto", () => ({ runAuto: runAutoMock }));
+const runGitHubScanMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
+vi.mock("@first-tree/auto", () => ({ runGitHubScan: runGitHubScanMock }));
 
 type ProgramRunResult = {
   code: number;
@@ -16,21 +20,36 @@ type ProgramRunResult = {
   stdout: string;
 };
 
+const tempDirs: string[] = [];
+
+function makeTempDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "first-tree-cli-"));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+
+    if (dir !== undefined) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  }
+
+  runGitHubScanMock.mockReset();
+  runGitHubScanMock.mockResolvedValue(0);
+});
+
 const commandMessages: Array<{
   args: string[];
   message: string;
 }> = [
   {
-    args: ["init"],
-    message: "first-tree init is not implemented yet.",
-  },
-  {
-    args: ["tree", "inspect"],
-    message: "first-tree tree inspect is not implemented yet.",
-  },
-  {
-    args: ["tree", "status"],
-    message: "first-tree tree status is not implemented yet.",
+    args: ["tree", "init"],
+    message: "first-tree tree init is not implemented yet.",
   },
   {
     args: ["tree", "generate-codeowners"],
@@ -39,6 +58,14 @@ const commandMessages: Array<{
   {
     args: ["tree", "install-claude-code-hook"],
     message: "first-tree tree install-claude-code-hook is not implemented yet.",
+  },
+  {
+    args: ["tree", "workspace", "sync"],
+    message: "first-tree tree workspace sync is not implemented yet.",
+  },
+  {
+    args: ["tree", "skill", "install"],
+    message: "first-tree tree skill install is not implemented yet.",
   },
   {
     args: ["hub", "start"],
@@ -107,24 +134,6 @@ async function runProgram(args: string[], version?: string): Promise<ProgramRunR
   return runConfiguredProgram(program, args);
 }
 
-async function runWithInitAction(
-  args: string[],
-): Promise<{ action: ReturnType<typeof vi.fn>; result: ProgramRunResult }> {
-  const originalAction = initCommand.action;
-  const action = vi.fn((_context: CommandContext) => {});
-
-  initCommand.action = action;
-
-  try {
-    return {
-      action,
-      result: await runProgram(args, "0.0.0-test"),
-    };
-  } finally {
-    initCommand.action = originalAction;
-  }
-}
-
 async function runWithTreeStatusAction(
   args: string[],
 ): Promise<{ action: ReturnType<typeof vi.fn>; result: ProgramRunResult }> {
@@ -185,14 +194,14 @@ describe("first-tree program", () => {
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Usage: first-tree");
-    expect(result.stdout).toContain(
-      "CLI for initializing and maintaining first-tree context trees.",
-    );
+    expect(result.stdout).toContain("CLI for Context Tree, GitHub Scan, and Hub workflows.");
     expect(result.stdout).toContain("--json");
     expect(result.stdout).toContain("-d, --debug");
     expect(result.stdout).toContain("-q, --quiet");
     expect(result.stdout).toContain("All commands:");
     expect(result.stdout).toContain("first-tree tree inspect");
+    expect(result.stdout).toContain("first-tree tree skill install");
+    expect(result.stdout).toContain("first-tree github scan");
     expect(result.stdout).toContain("first-tree hub start");
   });
 
@@ -211,16 +220,16 @@ describe("first-tree program", () => {
 
   it("formats command help entries that do not have descriptions", async () => {
     const program = createProgram("0.0.0-test");
-    const initCommand = program.commands.find((command) => command.name() === "init");
+    const githubCommand = program.commands.find((command) => command.name() === "github");
 
-    expect(initCommand).toBeDefined();
-    initCommand?.description("");
+    expect(githubCommand).toBeDefined();
+    githubCommand?.description("");
 
     const result = await runConfiguredProgram(program, ["--help"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("\n  first-tree init\n");
+    expect(result.stdout).toContain("\n  first-tree github\n");
   });
 
   it("prints successful help for a bare command group", async () => {
@@ -230,8 +239,19 @@ describe("first-tree program", () => {
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Usage: first-tree tree");
     expect(result.stdout).toContain("inspect");
-    expect(result.stdout).toContain("install-claude-code-hook");
+    expect(result.stdout).toContain("workspace");
+    expect(result.stdout).toContain("skill");
     expect(result.stdout).not.toContain("All commands:");
+  });
+
+  it("prints help for a bare nested command group", async () => {
+    const result = await runProgram(["tree", "skill"], "0.0.0-test");
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("Usage: first-tree tree skill");
+    expect(result.stdout).toContain("install");
+    expect(result.stdout).toContain("doctor");
   });
 
   it("delegates unknown group subcommands to Commander suggestions", async () => {
@@ -243,24 +263,33 @@ describe("first-tree program", () => {
     expect(result.stderr).toContain("(Did you mean inspect?)");
   });
 
-  it("passes default global options to a root command action", async () => {
-    const { action, result } = await runWithInitAction(["init"]);
+  it("delegates unknown github subcommands to Commander suggestions", async () => {
+    const result = await runProgram(["github", "scna"], "0.0.0-test");
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("error: unknown command 'scna'");
+    expect(result.stderr).toContain("(Did you mean scan?)");
+  });
+
+  it("passes default global options to a group subcommand action", async () => {
+    const { action, result } = await runWithTreeStatusAction(["tree", "status"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expectActionContext(action, "init", {
+    expectActionContext(action, "status", {
       json: false,
       debug: false,
       quiet: false,
     });
   });
 
-  it("passes json global options to a root command action", async () => {
-    const { action, result } = await runWithInitAction(["init", "--json"]);
+  it("passes json global options to a group subcommand action", async () => {
+    const { action, result } = await runWithTreeStatusAction(["tree", "status", "--json"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expectActionContext(action, "init", {
+    expectActionContext(action, "status", {
       json: true,
       debug: false,
       quiet: false,
@@ -268,11 +297,11 @@ describe("first-tree program", () => {
   });
 
   it("lets quiet win when it follows debug", async () => {
-    const { action, result } = await runWithInitAction(["init", "-d", "-q"]);
+    const { action, result } = await runWithTreeStatusAction(["tree", "status", "-d", "-q"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expectActionContext(action, "init", {
+    expectActionContext(action, "status", {
       json: false,
       debug: false,
       quiet: true,
@@ -280,11 +309,11 @@ describe("first-tree program", () => {
   });
 
   it("lets later global options win across command positions", async () => {
-    const { action, result } = await runWithInitAction(["-d", "init", "-q"]);
+    const { action, result } = await runWithTreeStatusAction(["-d", "tree", "status", "-q"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expectActionContext(action, "init", {
+    expectActionContext(action, "status", {
       json: false,
       debug: false,
       quiet: true,
@@ -292,36 +321,7 @@ describe("first-tree program", () => {
   });
 
   it("lets debug win when it follows quiet", async () => {
-    const { action, result } = await runWithInitAction(["init", "-q", "-d"]);
-
-    expect(result.code).toBe(0);
-    expect(result.stderr).toBe("");
-    expectActionContext(action, "init", {
-      json: false,
-      debug: true,
-      quiet: false,
-    });
-  });
-
-  it("normalizes debug and quiet precedence for group subcommands", async () => {
-    const { action, result } = await runWithTreeStatusAction([
-      "tree",
-      "status",
-      "--debug",
-      "--quiet",
-    ]);
-
-    expect(result.code).toBe(0);
-    expect(result.stderr).toBe("");
-    expectActionContext(action, "status", {
-      json: false,
-      debug: false,
-      quiet: true,
-    });
-  });
-
-  it("normalizes clustered short debug and quiet options by order", async () => {
-    const { action, result } = await runWithTreeStatusAction(["tree", "status", "-qd"]);
+    const { action, result } = await runWithTreeStatusAction(["tree", "status", "-q", "-d"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
@@ -332,7 +332,7 @@ describe("first-tree program", () => {
     });
   });
 
-  it("normalizes clustered short options when quiet follows debug", async () => {
+  it("normalizes clustered short options by order", async () => {
     const { action, result } = await runWithTreeStatusAction(["tree", "status", "-dq"]);
 
     expect(result.code).toBe(0);
@@ -368,69 +368,188 @@ describe("first-tree program", () => {
     });
   }
 
-  it("dispatches bare `auto` to runAuto with empty args", async () => {
-    runAutoMock.mockClear();
-    runAutoMock.mockResolvedValue(0);
+  it("classifies an unbound git repo during inspect", () => {
+    const root = makeTempDir();
+    writeFileSync(join(root, ".git"), "gitdir: /tmp/mock\n");
+
+    const result = inspectCurrentWorkingTree(root);
+
+    expect(result.classification).toBe("git-repo");
+    expect(result.rootKind).toBe("git-repo");
+    expect(result.rootPath).toBe(root);
+    expect(result.binding).toBeUndefined();
+  });
+
+  it("classifies a bound source repo during inspect", () => {
+    const root = makeTempDir();
+    mkdirSync(join(root, ".first-tree"), { recursive: true });
+    writeFileSync(join(root, ".git"), "gitdir: /tmp/mock\n");
+    writeFileSync(
+      join(root, ".first-tree", "source.json"),
+      `${JSON.stringify(
+        {
+          bindingMode: "shared-source",
+          scope: "repo",
+          tree: {
+            entrypoint: ".",
+            remoteUrl: "https://github.com/agent-team-foundation/first-tree-context.git",
+            treeRepoName: "first-tree-context",
+            treeMode: "shared",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const result = inspectCurrentWorkingTree(root);
+
+    expect(result.classification).toBe("source-repo");
+    expect(result.binding?.bindingMode).toBe("shared-source");
+    expect(result.binding?.treeRepo).toBe("agent-team-foundation/first-tree-context");
+  });
+
+  it("dispatches bare `github scan` to runGitHubScan with empty args", async () => {
+    runGitHubScanMock.mockClear();
+    runGitHubScanMock.mockResolvedValue(0);
     const previousExitCode = process.exitCode;
     process.exitCode = 0;
 
     try {
-      const result = await runProgram(["auto"], "0.0.0-test");
+      const result = await runProgram(["github", "scan"], "0.0.0-test");
 
       expect(result.code).toBe(0);
       expect(result.stderr).toBe("");
-      expect(runAutoMock).toHaveBeenCalledTimes(1);
-      expect(runAutoMock).toHaveBeenCalledWith([]);
+      expect(runGitHubScanMock).toHaveBeenCalledTimes(1);
+      expect(runGitHubScanMock).toHaveBeenCalledWith([]);
       expect(process.exitCode).toBe(0);
     } finally {
       process.exitCode = previousExitCode;
     }
   });
 
-  it("transparently passes auto args through to runAuto", async () => {
-    runAutoMock.mockClear();
-    runAutoMock.mockResolvedValue(0);
+  it("transparently passes github scan args through when no binding is needed", async () => {
+    runGitHubScanMock.mockClear();
+    runGitHubScanMock.mockResolvedValue(0);
     const previousExitCode = process.exitCode;
     process.exitCode = 0;
 
     try {
-      await runProgram(["auto", "status", "--allow-repo", "foo"], "0.0.0-test");
+      await runProgram(["github", "scan", "status", "--allow-repo", "foo"], "0.0.0-test");
 
-      expect(runAutoMock).toHaveBeenCalledWith(
-        ["status", "--allow-repo", "foo"],
-      );
+      expect(runGitHubScanMock).toHaveBeenCalledWith(["status", "--allow-repo", "foo"]);
     } finally {
       process.exitCode = previousExitCode;
     }
   });
 
-  it("forwards --help to runAuto when invoked under auto", async () => {
-    runAutoMock.mockClear();
-    runAutoMock.mockResolvedValue(0);
+  it("forwards --help to runGitHubScan when invoked under github scan", async () => {
+    runGitHubScanMock.mockClear();
+    runGitHubScanMock.mockResolvedValue(0);
     const previousExitCode = process.exitCode;
     process.exitCode = 0;
 
     try {
-      await runProgram(["auto", "--help"], "0.0.0-test");
+      await runProgram(["github", "scan", "--help"], "0.0.0-test");
 
-      expect(runAutoMock).toHaveBeenCalledWith(["--help"]);
+      expect(runGitHubScanMock).toHaveBeenCalledWith(["--help"]);
     } finally {
       process.exitCode = previousExitCode;
     }
   });
 
-  it("propagates non-zero runAuto exit code via process.exitCode", async () => {
-    runAutoMock.mockClear();
-    runAutoMock.mockResolvedValue(7);
+  it("propagates non-zero runGitHubScan exit code via process.exitCode", async () => {
+    runGitHubScanMock.mockClear();
+    runGitHubScanMock.mockResolvedValue(7);
     const previousExitCode = process.exitCode;
     process.exitCode = 0;
 
     try {
-      await runProgram(["auto", "doctor"], "0.0.0-test");
+      await runProgram(["github", "scan", "doctor"], "0.0.0-test");
 
-      expect(runAutoMock).toHaveBeenCalledWith(["doctor"]);
+      expect(runGitHubScanMock).toHaveBeenCalledWith(["doctor"]);
       expect(process.exitCode).toBe(7);
     } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+
+  it("blocks github scan poll without a binding", async () => {
+    runGitHubScanMock.mockClear();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const previousExitCode = process.exitCode;
+    process.exitCode = 0;
+
+    try {
+      await runProgram(["github", "scan", "poll", "--allow-repo", "owner/repo"], "0.0.0-test");
+
+      expect(runGitHubScanMock).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(1);
+      expect(error).toHaveBeenCalledOnce();
+      expect(String(error.mock.calls[0]?.[0])).toContain("requires a bound tree repo");
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+
+  it("accepts an explicit --tree-repo override for github scan and strips it before dispatch", async () => {
+    runGitHubScanMock.mockClear();
+    runGitHubScanMock.mockResolvedValue(0);
+    const previousExitCode = process.exitCode;
+    process.exitCode = 0;
+
+    try {
+      await runProgram(
+        [
+          "github",
+          "scan",
+          "poll",
+          "--allow-repo",
+          "owner/repo",
+          "--tree-repo",
+          "agent-team-foundation/first-tree-context",
+        ],
+        "0.0.0-test",
+      );
+
+      expect(runGitHubScanMock).toHaveBeenCalledWith(["poll", "--allow-repo", "owner/repo"]);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+
+  it("resolves github scan binding from .first-tree/source.json", async () => {
+    const root = makeTempDir();
+    mkdirSync(join(root, ".first-tree"), { recursive: true });
+    writeFileSync(
+      join(root, ".first-tree", "source.json"),
+      `${JSON.stringify(
+        {
+          bindingMode: "shared-source",
+          scope: "repo",
+          tree: {
+            remoteUrl: "https://github.com/acme/context.git",
+            treeRepoName: "context",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    runGitHubScanMock.mockClear();
+    runGitHubScanMock.mockResolvedValue(0);
+    const previousExitCode = process.exitCode;
+    const previousCwd = process.cwd();
+    process.exitCode = 0;
+
+    try {
+      process.chdir(root);
+      await runProgram(["github", "scan", "poll", "--allow-repo", "owner/repo"], "0.0.0-test");
+
+      expect(runGitHubScanMock).toHaveBeenCalledWith(["poll", "--allow-repo", "owner/repo"]);
+    } finally {
+      process.chdir(previousCwd);
       process.exitCode = previousExitCode;
     }
   });
@@ -438,8 +557,8 @@ describe("first-tree program", () => {
   it("runs main with an explicit argv", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await main(["node", "first-tree", "init"]);
+    await main(["node", "first-tree", "tree", "help", "onboarding"]);
 
-    expect(log).toHaveBeenCalledWith("first-tree init is not implemented yet.");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("first-tree tree help onboarding"));
   });
 });

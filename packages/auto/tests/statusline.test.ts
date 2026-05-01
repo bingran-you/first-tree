@@ -121,14 +121,12 @@ describe("renderStatusline", () => {
 
 describe("auto-statusline dist bundle", () => {
   const BUNDLE_PATH = join(TEST_DIR, "..", "dist", "auto-statusline.js");
+  const MAX_EXTRA_COLD_START_MS = 200;
 
   // spawnSync sporadically returns status: null under vitest's parallel
   // worker pressure (the child gets a signal before exit is observed).
   // Retry up to 3 times before letting the assertion fail.
-  function runBundle(
-    autoDir: string,
-    encoding?: "utf-8",
-  ): ReturnType<typeof spawnSync> {
+  function runBundle(autoDir: string, encoding?: "utf-8"): ReturnType<typeof spawnSync> {
     let last: ReturnType<typeof spawnSync> | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       last = spawnSync(process.execPath, [BUNDLE_PATH], {
@@ -141,12 +139,45 @@ describe("auto-statusline dist bundle", () => {
     return last as ReturnType<typeof spawnSync>;
   }
 
+  function runNoopNode(): ReturnType<typeof spawnSync> {
+    let last: ReturnType<typeof spawnSync> | null = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      last = spawnSync(process.execPath, ["-e", ""], {
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (last.status !== null) return last;
+    }
+    return last as ReturnType<typeof spawnSync>;
+  }
+
+  function medianDuration(
+    runner: () => ReturnType<typeof spawnSync>,
+    runs: number,
+  ): {
+    median: number;
+    timings: number[];
+  } {
+    const timings: number[] = [];
+
+    for (let i = 0; i < runs; i += 1) {
+      const start = Number(process.hrtime.bigint() / 1000000n);
+      const result = runner();
+      const end = Number(process.hrtime.bigint() / 1000000n);
+      expect(result.status).toBe(0);
+      timings.push(end - start);
+    }
+
+    return {
+      median: [...timings].sort((a, b) => a - b)[Math.floor(runs / 2)],
+      timings,
+    };
+  }
+
   it("prints a summary line from a fake cache file", () => {
     if (!existsSync(BUNDLE_PATH)) {
       // Build hasn't been run; skip this test rather than silently pass.
-      console.warn(
-        "dist/auto-statusline.js missing — run `pnpm build` before this test",
-      );
+      console.warn("dist/auto-statusline.js missing — run `pnpm build` before this test");
       return;
     }
     const dir = mkAutoDir();
@@ -184,7 +215,7 @@ describe("auto-statusline dist bundle", () => {
     }
   });
 
-  it("cold-starts under 200ms (target <30ms; 200ms guards against regressions)", () => {
+  it("keeps bundle cold-start overhead within 200ms of a noop Node process", () => {
     if (!existsSync(BUNDLE_PATH)) return;
     const dir = mkAutoDir();
     try {
@@ -197,25 +228,22 @@ describe("auto-statusline dist bundle", () => {
         })),
       };
       writeFileSync(join(dir, "inbox.json"), JSON.stringify(inbox), "utf-8");
-      // Warm up once so hot filesystem cache.
+      // Warm both paths once so the comparison focuses on relative startup
+      // overhead instead of first-touch filesystem noise.
+      runNoopNode();
       runBundle(dir);
       const runs = 5;
-      const timings: number[] = [];
-      for (let i = 0; i < runs; i += 1) {
-        const start = Number(process.hrtime.bigint() / 1000000n);
-        const result = runBundle(dir);
-        const end = Number(process.hrtime.bigint() / 1000000n);
-        expect(result.status).toBe(0);
-        timings.push(end - start);
-      }
-      const median = [...timings].sort((a, b) => a - b)[Math.floor(runs / 2)];
+      const baseline = medianDuration(() => runNoopNode(), runs);
+      const bundle = medianDuration(() => runBundle(dir), runs);
+      const extraCost = bundle.median - baseline.median;
       console.log(
-        `auto-statusline cold-start: median ${median}ms across ${runs} runs (timings: ${timings.join(", ")})`,
+        `auto-statusline cold-start: noop median ${baseline.median}ms (timings: ${baseline.timings.join(", ")}), bundle median ${bundle.median}ms (timings: ${bundle.timings.join(", ")}), extra ${extraCost}ms`,
       );
-      // Target is <30ms for the bundle code itself, but `node` itself
-      // needs ~40-80ms to spin up on many machines. We guard against
-      // regressions by checking the end-to-end stays under 200ms.
-      expect(median).toBeLessThan(200);
+      // The bundle itself should stay lightweight. On fast machines the total
+      // cold start is far below this, but on loaded CI workers the dominant
+      // cost is often process startup rather than the bundle. Compare against
+      // a noop Node process and bound only the additional overhead.
+      expect(extraCost).toBeLessThan(MAX_EXTRA_COLD_START_MS);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

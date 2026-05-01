@@ -7,6 +7,26 @@ type CommandWithUnknownCommand = Command & {
   unknownCommand(): void;
 };
 
+export function registerSubcommands(command: Command, subcommands: SubcommandModule[]): void {
+  for (const subcommand of subcommands) {
+    const childCommand = command.command(subcommand.name);
+
+    if (subcommand.alias.length > 0) {
+      childCommand.alias(subcommand.alias);
+    }
+
+    if (subcommand.summary.length > 0) {
+      childCommand.summary(subcommand.summary);
+    }
+
+    childCommand
+      .description(subcommand.description)
+      .showHelpAfterError(true)
+      .showSuggestionAfterError(true)
+      .action(withCommandContext(subcommand.action));
+  }
+}
+
 export function registerCommandGroup(
   program: Command,
   name: string,
@@ -27,14 +47,5 @@ export function registerCommandGroup(
       command.outputHelp();
     });
 
-  for (const subcommand of subcommands) {
-    command
-      .command(subcommand.name)
-      .alias(subcommand.alias)
-      .summary(subcommand.summary)
-      .description(subcommand.description)
-      .showHelpAfterError(true)
-      .showSuggestionAfterError(true)
-      .action(withCommandContext(subcommand.action));
-  }
+  registerSubcommands(command, subcommands);
 }

@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -11,17 +12,21 @@ const repoRoot = resolve(cliRoot, "../..");
 const entryPath = resolve(cliRoot, "dist/index.js");
 const rootPackagePath = resolve(repoRoot, "package.json");
 const cliPackagePath = resolve(cliRoot, "package.json");
-const commandNames = ["init", "tree", "hub", "auto"];
+const commandNames = ["tree", "github", "hub"];
 const rootHelpCommandPaths = [
-  "first-tree init",
   "first-tree tree inspect",
+  "first-tree tree skill install",
+  "first-tree github scan",
   "first-tree hub start",
-  "first-tree auto",
 ];
 const commandGroups = [
   {
     name: "tree",
-    subcommands: ["inspect", "status", "generate-codeowners", "install-claude-code-hook"],
+    subcommands: ["inspect", "status", "init", "workspace", "skill", "help"],
+  },
+  {
+    name: "github",
+    subcommands: ["scan"],
   },
   {
     name: "hub",
@@ -33,15 +38,20 @@ async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-function runCli(args) {
+function runCli(args, options = {}) {
   return new Promise((resolveRun) => {
-    execFile(process.execPath, [entryPath, ...args], { cwd: repoRoot }, (error, stdout, stderr) => {
-      resolveRun({
-        code: error && "code" in error ? error.code : 0,
-        stdout,
-        stderr,
-      });
-    });
+    execFile(
+      process.execPath,
+      [entryPath, ...args],
+      { cwd: options.cwd ?? repoRoot },
+      (error, stdout, stderr) => {
+        resolveRun({
+          code: error && "code" in error ? error.code : 0,
+          stdout,
+          stderr,
+        });
+      },
+    );
   });
 }
 
@@ -63,9 +73,7 @@ describe("first-tree CLI", () => {
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Usage: first-tree");
-    expect(result.stdout).toContain(
-      "CLI for initializing and maintaining first-tree context trees.",
-    );
+    expect(result.stdout).toContain("CLI for Context Tree, GitHub Scan, and Hub workflows.");
     expect(result.stdout).toContain("--json");
     expect(result.stdout).toContain("-d, --debug");
     expect(result.stdout).toContain("-q, --quiet");
@@ -78,41 +86,79 @@ describe("first-tree CLI", () => {
     }
   });
 
-  it("runs the init placeholder successfully", async () => {
-    const result = await runCli(["init"]);
+  it("prints inspect output for the current repo", async () => {
+    const result = await runCli(["tree", "inspect"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout.trim()).toBe("first-tree init is not implemented yet.");
+    expect(result.stdout).toContain("first-tree tree inspect");
+    expect(result.stdout).toContain("classification: git-repo");
   });
 
-  it("runs bare `auto` and prints AUTO_USAGE with exit 0", async () => {
-    const result = await runCli(["auto"]);
+  it("prints inspect json for the current repo", async () => {
+    const result = await runCli(["tree", "inspect", "--json"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("usage: first-tree auto");
-    expect(result.stdout).toContain("Auto is the proposal/inbox agent");
+    expect(result.stdout).toContain('"classification": "git-repo"');
   });
 
-  it("passes auto pass-through args without commander interception", async () => {
-    // `auto status --allow-repo foo` reaches runStatus inside runAuto, which
-    // rejects the malformed `foo` pattern via the runtime allow-repo guard
-    // and exits 1 with the auto-prefixed stderr message. This proves the
-    // catch-all routes args through unchanged.
-    const result = await runCli(["auto", "status", "--allow-repo", "foo"]);
+  it("prints onboarding help from the tree help namespace", async () => {
+    const result = await runCli(["tree", "help", "onboarding"]);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("first-tree tree help onboarding");
+    expect(result.stdout).toContain("github scan");
+  });
+
+  it("runs tree placeholder commands successfully", async () => {
+    const initResult = await runCli(["tree", "init"]);
+    const skillResult = await runCli(["tree", "skill", "install"]);
+    const workspaceResult = await runCli(["tree", "workspace", "sync"]);
+
+    expect(initResult.code).toBe(0);
+    expect(initResult.stdout.trim()).toBe("first-tree tree init is not implemented yet.");
+    expect(skillResult.code).toBe(0);
+    expect(skillResult.stdout.trim()).toBe("first-tree tree skill install is not implemented yet.");
+    expect(workspaceResult.code).toBe(0);
+    expect(workspaceResult.stdout.trim()).toBe(
+      "first-tree tree workspace sync is not implemented yet.",
+    );
+  });
+
+  it("runs bare `github scan` and prints help with exit 0", async () => {
+    const result = await runCli(["github", "scan"]);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("usage: first-tree github scan");
+    expect(result.stdout).toContain("GitHub Scan is the GitHub automation and inbox agent");
+  });
+
+  it("passes github scan args through without commander interception", async () => {
+    const result = await runCli(["github", "scan", "status", "--allow-repo", "foo"]);
 
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain("first-tree auto");
+    expect(result.stderr).toContain("first-tree github scan");
     expect(result.stderr).toContain("invalid repo allow pattern");
   });
 
-  it("forwards --help to runAuto via the auto catch-all", async () => {
-    const result = await runCli(["auto", "--help"]);
+  it("fails closed when github scan poll has no tree binding", async () => {
+    const result = await runCli(["github", "scan", "poll", "--allow-repo", "owner/repo"]);
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("requires a bound tree repo");
+    expect(result.stderr).toContain("first-tree tree bind");
+  });
+
+  it("forwards --help to github scan", async () => {
+    const result = await runCli(["github", "scan", "--help"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("usage: first-tree auto");
+    expect(result.stdout).toContain("usage: first-tree github scan");
   });
 
   for (const commandGroup of commandGroups) {
@@ -139,29 +185,38 @@ describe("first-tree CLI", () => {
         expect(result.stdout).toContain(subcommandName);
       }
     });
-
-    for (const subcommandName of commandGroup.subcommands) {
-      it(`runs the ${commandGroup.name} ${subcommandName} placeholder successfully`, async () => {
-        const result = await runCli([commandGroup.name, subcommandName]);
-
-        expect(result.code).toBe(0);
-        expect(result.stderr).toBe("");
-        expect(result.stdout.trim()).toBe(
-          `first-tree ${commandGroup.name} ${subcommandName} is not implemented yet.`,
-        );
-      });
-
-      it(`prints ${commandGroup.name} ${subcommandName} help after an invalid option`, async () => {
-        const result = await runCli([commandGroup.name, subcommandName, "--bad-option"]);
-
-        expect(result.code).toBe(1);
-        expect(result.stdout).toBe("");
-        expect(result.stderr).toContain("error: unknown option '--bad-option'");
-        expect(result.stderr).toContain(`Usage: first-tree ${commandGroup.name} ${subcommandName}`);
-        expect(result.stderr).toContain("Options:");
-      });
-    }
   }
+
+  it("prints nested tree group help", async () => {
+    const skillHelp = await runCli(["tree", "skill"]);
+    const workspaceHelp = await runCli(["tree", "workspace"]);
+
+    expect(skillHelp.code).toBe(0);
+    expect(skillHelp.stdout).toContain("Usage: first-tree tree skill");
+    expect(skillHelp.stdout).toContain("install");
+
+    expect(workspaceHelp.code).toBe(0);
+    expect(workspaceHelp.stdout).toContain("Usage: first-tree tree workspace");
+    expect(workspaceHelp.stdout).toContain("sync");
+  });
+
+  it("runs hub placeholder commands successfully", async () => {
+    const result = await runCli(["hub", "start"]);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout.trim()).toBe("first-tree hub start is not implemented yet.");
+  });
+
+  it("prints subcommand help after an invalid option", async () => {
+    const result = await runCli(["tree", "generate-codeowners", "--bad-option"]);
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("error: unknown option '--bad-option'");
+    expect(result.stderr).toContain("Usage: first-tree tree generate-codeowners");
+    expect(result.stderr).toContain("Options:");
+  });
 
   it("suggests a third-level subcommand for an unknown typo", async () => {
     const result = await runCli(["tree", "inspec"]);

@@ -1,7 +1,9 @@
-import type { SubcommandModule } from "../types.js";
+import type { CommandContext, SubcommandModule } from "../types.js";
 
-export function runStatusCommand(): void {
-  console.log("first-tree tree status is not implemented yet.");
+import { runInspectCommand } from "./inspect.js";
+
+export function runStatusCommand(context: CommandContext): void {
+  runInspectCommand(context);
 }
 
 export const statusCommand: SubcommandModule = {
