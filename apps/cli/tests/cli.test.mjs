@@ -133,7 +133,7 @@ describe("first-tree CLI", () => {
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("usage: first-tree github scan");
-    expect(result.stdout).toContain("GitHub Scan is the GitHub automation and inbox agent");
+    expect(result.stdout).toContain("GitHub Scan is the GitHub notification daemon");
   });
 
   it("passes github scan args through without commander interception", async () => {

@@ -12,7 +12,7 @@ import type { CommandAction, CommandContext, GlobalOptions } from "../src/comman
 import { createProgram, main } from "../src/index.js";
 
 const runGitHubScanMock = vi.hoisted(() => vi.fn().mockResolvedValue(0));
-vi.mock("@first-tree/auto", () => ({ runGitHubScan: runGitHubScanMock }));
+vi.mock("@first-tree/github-scan", () => ({ runGitHubScan: runGitHubScanMock }));
 
 type ProgramRunResult = {
   code: number;

@@ -12,6 +12,6 @@
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "tests"],
   "references": [
-    { "path": "../../packages/auto" }
+    { "path": "../../packages/github-scan" }
   ]
 }

@@ -26,9 +26,9 @@ importers:
 
   apps/cli:
     dependencies:
-      '@first-tree/auto':
+      '@first-tree/github-scan':
         specifier: workspace:*
-        version: link:../../packages/auto
+        version: link:../../packages/github-scan
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -49,7 +49,7 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@types/node@22.19.17)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@22.19.17)(jiti@2.6.1)(yaml@2.8.3))
 
-  packages/auto:
+  packages/github-scan:
     dependencies:
       ink:
         specifier: ^7.0.0

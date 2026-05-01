@@ -50,7 +50,7 @@ export const githubCommand: CommandModule = {
           }
         }
 
-        const { runGitHubScan } = await import("@first-tree/auto");
+        const { runGitHubScan } = await import("@first-tree/github-scan");
         const exitCode = await runGitHubScan(stripTreeRepoArg(forwardedArgs));
 
         if (typeof exitCode === "number" && exitCode !== 0) {

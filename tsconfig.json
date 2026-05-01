@@ -2,6 +2,6 @@
   "files": [],
   "references": [
     { "path": "./apps/cli" },
-    { "path": "./packages/auto" }
+    { "path": "./packages/github-scan" }
   ]
 }
