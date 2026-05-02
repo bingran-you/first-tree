@@ -60,10 +60,6 @@ const commandMessages: Array<{
     message: "first-tree tree install-claude-code-hook is not implemented yet.",
   },
   {
-    args: ["tree", "workspace", "sync"],
-    message: "first-tree tree workspace sync is not implemented yet.",
-  },
-  {
     args: ["hub", "start"],
     message: "first-tree hub start is not implemented yet.",
   },
@@ -363,6 +359,33 @@ describe("first-tree program", () => {
       expect(log).toHaveBeenCalledWith(message);
     });
   }
+
+  it("reports a missing shared tree for workspace sync in process", async () => {
+    const root = makeTempDir();
+    mkdirSync(join(root, "repo-a"));
+    mkdirSync(join(root, "repo-b"));
+    writeFileSync(join(root, "repo-a", ".git"), "gitdir: /tmp/a\n");
+    writeFileSync(join(root, "repo-b", ".git"), "gitdir: /tmp/b\n");
+
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const previousCwd = process.cwd();
+    const previousExitCode = process.exitCode;
+    process.chdir(root);
+
+    try {
+      const result = await runProgram(["tree", "workspace", "sync"], "0.0.0-test");
+
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toBe("");
+      expect(error).toHaveBeenCalledWith(
+        "Could not resolve the shared tree for this workspace. Pass --tree-path or --tree-url, or bind the workspace root first.",
+      );
+    } finally {
+      process.chdir(previousCwd);
+      process.exitCode = previousExitCode;
+    }
+  });
 
   it("classifies an unbound git repo during inspect", () => {
     const root = makeTempDir();

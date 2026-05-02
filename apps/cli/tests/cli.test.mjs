@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -126,10 +126,96 @@ describe("first-tree CLI", () => {
 
     expect(initResult.code).toBe(0);
     expect(initResult.stdout.trim()).toBe("first-tree tree init is not implemented yet.");
-    expect(workspaceResult.code).toBe(0);
-    expect(workspaceResult.stdout.trim()).toBe(
-      "first-tree tree workspace sync is not implemented yet.",
+    expect(workspaceResult.code).toBe(1);
+    expect(workspaceResult.stdout).toBe("");
+    expect(workspaceResult.stderr).toContain(
+      "Could not resolve the shared tree for this workspace.",
     );
+  });
+
+  it("binds a source repo to a tree repo", async () => {
+    const sourceRoot = await makeGitRepoDir("first-tree-bind-source-");
+    const treeRoot = await makeGitRepoDir("first-tree-bind-tree-");
+    const result = await runCli(["tree", "bind", "--tree-path", treeRoot], { cwd: sourceRoot });
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("Context Tree Bind");
+    expect(result.stdout).toContain("Wrote");
+    expect(await readFile(resolve(sourceRoot, ".first-tree", "source.json"), "utf8")).toContain(
+      '"treeRepoName"',
+    );
+    expect(await readFile(resolve(treeRoot, ".first-tree", "tree.json"), "utf8")).toContain(
+      '"treeRepoName"',
+    );
+  });
+
+  it("prints workspace sync dry-run json", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "first-tree-workspace-"));
+    const treeRoot = await makeGitRepoDir("first-tree-workspace-tree-");
+    const repoA = resolve(workspaceRoot, "repo-a");
+    const repoB = resolve(workspaceRoot, "nested", "repo-b");
+
+    await mkdir(repoA, { recursive: true });
+    await mkdir(repoB, { recursive: true });
+    await writeFile(resolve(workspaceRoot, ".git"), "gitdir: /tmp/workspace\n");
+    await writeFile(resolve(repoA, ".git"), "gitdir: /tmp/repo-a\n");
+    await writeFile(resolve(repoB, ".git"), "gitdir: /tmp/repo-b\n");
+
+    const result = await runCli(
+      ["tree", "workspace", "sync", "--tree-path", treeRoot, "--dry-run", "--json"],
+      { cwd: workspaceRoot },
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain('"childRepos"');
+    expect(result.stdout).toContain('"repo-a"');
+    expect(result.stdout).toContain('"nested/repo-b"');
+  });
+
+  it("verifies a simple tree repo", async () => {
+    const treeRoot = await makeGitRepoDir("first-tree-verify-tree-");
+    await mkdir(resolve(treeRoot, ".first-tree"), { recursive: true });
+    await mkdir(resolve(treeRoot, "members", "alice"), { recursive: true });
+    await writeFile(
+      resolve(treeRoot, "NODE.md"),
+      `---\ntitle: Context Tree\nowners: [alice]\n---\n\n# Context Tree\n`,
+    );
+    await writeFile(
+      resolve(treeRoot, "AGENTS.md"),
+      "<!-- BEGIN CONTEXT-TREE FRAMEWORK -->\n<!-- END CONTEXT-TREE FRAMEWORK -->\n",
+    );
+    await writeFile(resolve(treeRoot, "CLAUDE.md"), "<!-- BEGIN CONTEXT-TREE FRAMEWORK -->\n");
+    await writeFile(resolve(treeRoot, ".first-tree", "VERSION"), "0.4.0-alpha.1\n");
+    await writeFile(
+      resolve(treeRoot, ".first-tree", "tree.json"),
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          treeId: "context-tree",
+          treeMode: "shared",
+          treeRepoName: "context-tree",
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeFile(resolve(treeRoot, ".first-tree", "progress.md"), "- [x] bootstrap\n");
+    await writeFile(
+      resolve(treeRoot, "members", "NODE.md"),
+      `---\ntitle: Members\nowners: [alice]\n---\n\n# Members\n`,
+    );
+    await writeFile(
+      resolve(treeRoot, "members", "alice", "NODE.md"),
+      `---\ntitle: Alice\nowners: [alice]\ntype: human\nrole: owner\ndomains: [core]\n---\n\n# Alice\n`,
+    );
+
+    const result = await runCli(["tree", "verify", "--json"], { cwd: treeRoot });
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain('"ok": true');
   });
 
   it("installs and inspects shipped skills through `tree skill` commands", async () => {

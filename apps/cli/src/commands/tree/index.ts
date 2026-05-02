@@ -3,11 +3,15 @@ import type { Command } from "commander";
 import { createPlaceholderSubcommand } from "../placeholder.js";
 import type { CommandModule, SubcommandModule } from "../types.js";
 import { registerCommandGroup, registerSubcommands } from "../groups.js";
+import { bindCommand } from "./bind.js";
 import { generateCodeownersCommand } from "./generate-codeowners.js";
 import { inspectCommand } from "./inspect.js";
+import { integrateCommand } from "./integrate.js";
 import { installClaudeCodeHookCommand } from "./install-claude-code-hook.js";
 import { skillSubcommands } from "./skill.js";
 import { statusCommand } from "./status.js";
+import { verifyCommand } from "./verify.js";
+import { workspaceSyncCommand } from "./workspace-sync.js";
 
 type CommandWithUnknownCommand = Command & {
   unknownCommand(): void;
@@ -40,21 +44,9 @@ const treeSubcommands: SubcommandModule[] = [
     description: "Bootstrap an explicit tree repo checkout.",
     message: "first-tree tree bootstrap is not implemented yet.",
   }),
-  createPlaceholderSubcommand({
-    name: "bind",
-    description: "Bind the current repo or workspace to an existing tree repo.",
-    message: "first-tree tree bind is not implemented yet.",
-  }),
-  createPlaceholderSubcommand({
-    name: "integrate",
-    description: "Install local tree integration without mutating the tree repo.",
-    message: "first-tree tree integrate is not implemented yet.",
-  }),
-  createPlaceholderSubcommand({
-    name: "verify",
-    description: "Validate a Context Tree repo.",
-    message: "first-tree tree verify is not implemented yet.",
-  }),
+  bindCommand,
+  integrateCommand,
+  verifyCommand,
   createPlaceholderSubcommand({
     name: "upgrade",
     description: "Refresh local first-tree integration and tree metadata.",
@@ -100,11 +92,7 @@ export const treeCommand: CommandModule = {
     registerSubcommands(command, treeSubcommands);
 
     registerCommandGroup(command, "workspace", "Run workspace tree helpers.", [
-      createPlaceholderSubcommand({
-        name: "sync",
-        description: "Bind newly added child repos to the shared tree.",
-        message: "first-tree tree workspace sync is not implemented yet.",
-      }),
+      workspaceSyncCommand,
     ]);
 
     registerCommandGroup(
