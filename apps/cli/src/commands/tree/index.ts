@@ -6,6 +6,7 @@ import { registerCommandGroup, registerSubcommands } from "../groups.js";
 import { bindCommand } from "./bind.js";
 import { generateCodeownersCommand } from "./generate-codeowners.js";
 import { inspectCommand } from "./inspect.js";
+import { injectContextCommand } from "./inject-context.js";
 import { integrateCommand } from "./integrate.js";
 import { installClaudeCodeHookCommand } from "./install-claude-code-hook.js";
 import { skillSubcommands } from "./skill.js";
@@ -59,11 +60,7 @@ const treeSubcommands: SubcommandModule[] = [
   }),
   generateCodeownersCommand,
   installClaudeCodeHookCommand,
-  createPlaceholderSubcommand({
-    name: "inject-context",
-    description: "Emit the Claude Code SessionStart payload from NODE.md.",
-    message: "first-tree tree inject-context is not implemented yet.",
-  }),
+  injectContextCommand,
   createPlaceholderSubcommand({
     name: "review",
     description: "Run the tree PR review helper.",

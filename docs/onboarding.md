@@ -25,10 +25,12 @@ The restructured CLI is centered on three ideas:
 
 At the moment:
 
-- `tree inspect` and `tree status` are implemented
+- `tree inspect`, `tree status`, `tree bind`, `tree integrate`,
+  `tree workspace sync`, `tree verify`, `tree generate-codeowners`,
+  `tree install-claude-code-hook`, and `tree inject-context` are implemented
 - `tree help onboarding` prints the short in-CLI version of this guide
-- the rest of the tree command surface is present as scaffolding while the old
-  engine is ported back
+- `tree init`, `tree bootstrap`, `tree upgrade`, `tree publish`, and
+  `tree review` are still the main scaffolding surface while the old engine is ported back
 - `github scan` is the most complete runtime in the workspace today
 
 ## When To Reach For `github scan`

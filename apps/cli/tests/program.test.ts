@@ -52,14 +52,6 @@ const commandMessages: Array<{
     message: "first-tree tree init is not implemented yet.",
   },
   {
-    args: ["tree", "generate-codeowners"],
-    message: "first-tree tree generate-codeowners is not implemented yet.",
-  },
-  {
-    args: ["tree", "install-claude-code-hook"],
-    message: "first-tree tree install-claude-code-hook is not implemented yet.",
-  },
-  {
     args: ["hub", "start"],
     message: "first-tree hub start is not implemented yet.",
   },
@@ -384,6 +376,76 @@ describe("first-tree program", () => {
     } finally {
       process.chdir(previousCwd);
       process.exitCode = previousExitCode;
+    }
+  });
+
+  it("installs managed SessionStart hooks in process", async () => {
+    const root = makeTempDir();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const previousCwd = process.cwd();
+    process.chdir(root);
+
+    try {
+      const result = await runProgram(["tree", "install-claude-code-hook"], "0.0.0-test");
+
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toBe("");
+      expect(log).toHaveBeenCalled();
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("generates CODEOWNERS in process", async () => {
+    const root = makeTempDir();
+    mkdirSync(join(root, "members", "alice"), { recursive: true });
+    writeFileSync(
+      join(root, "NODE.md"),
+      `---\ntitle: Context Tree\nowners: [alice]\n---\n\n# Context Tree\n`,
+    );
+    writeFileSync(
+      join(root, "members", "NODE.md"),
+      `---\ntitle: Members\nowners: [alice]\n---\n\n# Members\n`,
+    );
+    writeFileSync(
+      join(root, "members", "alice", "NODE.md"),
+      `---\ntitle: Alice\nowners: [alice]\ntype: human\nrole: owner\ndomains: [core]\n---\n\n# Alice\n`,
+    );
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const previousCwd = process.cwd();
+    process.chdir(root);
+
+    try {
+      const result = await runProgram(["tree", "generate-codeowners"], "0.0.0-test");
+
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toBe("");
+      expect(log).toHaveBeenCalledWith("Wrote .github/CODEOWNERS");
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("emits inject-context payload in process", async () => {
+    const root = makeTempDir();
+    writeFileSync(join(root, "NODE.md"), "# Root\nbody\n");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const previousCwd = process.cwd();
+    process.chdir(root);
+
+    try {
+      const result = await runProgram(["tree", "inject-context"], "0.0.0-test");
+
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toBe("");
+      const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+      expect(payload.hookSpecificOutput.hookEventName).toBe("SessionStart");
+      expect(payload.hookSpecificOutput.additionalContext).toContain("# Root");
+    } finally {
+      process.chdir(previousCwd);
     }
   });
 

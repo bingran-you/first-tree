@@ -37,11 +37,10 @@ This workspace now carries the canonical skill source at the repo root:
 
 The current gaps are now narrower:
 
-- `first-tree tree skill ...` is still scaffolded, so install/list/doctor/link
-  have not yet been wired to these canonical payloads
 - `packages/github-scan/skills/github-scan/` still exists as the package-local,
   historical operational handbook for the runtime package
-- the deeper tree engine is still being ported back behind the current CLI shell
+- the deeper onboarding/publish/review tree engine is still being ported back
+  behind the current CLI shell
 
 ## Why This Matters
 

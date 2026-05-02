@@ -66,8 +66,18 @@ export function buildSourceRepoIndex(bindings: TreeBindingState[]): string {
     return `${lines.join("\n")}\n`;
   }
 
-  lines.push("| Source | GitHub | Binding | Tree Entrypoint |");
-  lines.push("| --- | --- | --- | --- |");
+  lines.push(...buildSourceRepoIndexTable(bindings));
+
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
+
+export function buildSourceRepoIndexTable(bindings: TreeBindingState[]): string[] {
+  if (bindings.length === 0) {
+    return ["No bound source/workspace repos have been recorded yet."];
+  }
+
+  const lines = ["| Source | GitHub | Binding | Tree Entrypoint |", "| --- | --- | --- | --- |"];
 
   for (const binding of [...bindings].sort(compareBindings)) {
     lines.push(
@@ -80,8 +90,7 @@ export function buildSourceRepoIndex(bindings: TreeBindingState[]): string {
     );
   }
 
-  lines.push("");
-  return `${lines.join("\n")}\n`;
+  return lines;
 }
 
 function writeSourceRepoIndex(treeRoot: string, bindings: TreeBindingState[]): SyncAction {

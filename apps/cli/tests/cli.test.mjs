@@ -218,6 +218,64 @@ describe("first-tree CLI", () => {
     expect(result.stdout).toContain('"ok": true');
   });
 
+  it("generates CODEOWNERS for a simple tree repo", async () => {
+    const treeRoot = await makeGitRepoDir("first-tree-codeowners-tree-");
+    await mkdir(resolve(treeRoot, "members", "alice"), { recursive: true });
+    await writeFile(
+      resolve(treeRoot, "NODE.md"),
+      `---\ntitle: Context Tree\nowners: [alice]\n---\n\n# Context Tree\n`,
+    );
+    await writeFile(
+      resolve(treeRoot, "members", "NODE.md"),
+      `---\ntitle: Members\nowners: [alice]\n---\n\n# Members\n`,
+    );
+    await writeFile(
+      resolve(treeRoot, "members", "alice", "NODE.md"),
+      `---\ntitle: Alice\nowners: [alice]\ntype: human\nrole: owner\ndomains: [core]\n---\n\n# Alice\n`,
+    );
+
+    const writeResult = await runCli(["tree", "generate-codeowners"], { cwd: treeRoot });
+    const checkResult = await runCli(["tree", "generate-codeowners", "--check"], { cwd: treeRoot });
+
+    expect(writeResult.code).toBe(0);
+    expect(writeResult.stderr).toBe("");
+    expect(writeResult.stdout).toContain("Wrote .github/CODEOWNERS");
+    expect(await readFile(resolve(treeRoot, ".github", "CODEOWNERS"), "utf8")).toContain("@alice");
+    expect(checkResult.code).toBe(0);
+    expect(checkResult.stdout).toContain("CODEOWNERS is up-to-date.");
+  });
+
+  it("installs managed SessionStart hooks", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "first-tree-hooks-"));
+    const result = await runCli(["tree", "install-claude-code-hook", "--root", root]);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain(".claude/settings.json");
+    expect(await readFile(resolve(root, ".claude", "settings.json"), "utf8")).toContain(
+      "first-tree tree inject-context",
+    );
+    expect(await readFile(resolve(root, ".codex", "config.toml"), "utf8")).toContain(
+      "codex_hooks = true",
+    );
+    expect(await readFile(resolve(root, ".codex", "hooks.json"), "utf8")).toContain(
+      "Loading First Tree context",
+    );
+  });
+
+  it("emits inject-context payload from a local tree repo", async () => {
+    const treeRoot = await makeGitRepoDir("first-tree-inject-tree-");
+    await writeFile(resolve(treeRoot, "NODE.md"), "# Root\nbody\n");
+
+    const result = await runCli(["tree", "inject-context"], { cwd: treeRoot });
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    const payload = JSON.parse(result.stdout);
+    expect(payload.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(payload.hookSpecificOutput.additionalContext).toContain("# Root");
+  });
+
   it("installs and inspects shipped skills through `tree skill` commands", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "first-tree-skill-install-"));
 
