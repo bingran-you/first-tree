@@ -27,10 +27,10 @@ At the moment:
 
 - `tree inspect`, `tree status`, `tree bind`, `tree integrate`,
   `tree workspace sync`, `tree verify`, `tree generate-codeowners`,
-  `tree install-claude-code-hook`, and `tree inject-context` are implemented
+  `tree install-claude-code-hook`, `tree inject-context`, `tree upgrade`, and
+  `tree review` are implemented
 - `tree help onboarding` prints the short in-CLI version of this guide
 - `tree init`, `tree bootstrap`, and `tree publish` are now implemented
-- `tree upgrade` and `tree review` are still the main scaffolding surface while the old engine is ported back
 - `github scan` is the most complete runtime in the workspace today
 
 ## When To Reach For `github scan`

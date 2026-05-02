@@ -39,7 +39,8 @@ The current gaps are now narrower:
 
 - `packages/github-scan/skills/github-scan/` still exists as the package-local,
   historical operational handbook for the runtime package
-- the deeper onboarding/publish/review tree engine is still being ported back
+- the remaining gaps are now mostly around higher-level sync/write behavior and
+  repo/tree adoption rather than the base tree command surface
   behind the current CLI shell
 
 ## Why This Matters

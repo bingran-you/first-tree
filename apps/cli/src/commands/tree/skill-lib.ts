@@ -156,6 +156,14 @@ function readVersion(path: string): string | null {
   }
 }
 
+export function readBundledSkillVersion(): string {
+  const version = readVersion(join(resolveBundledSkillsRoot(), "first-tree"));
+  if (version === null) {
+    throw new Error("Could not read the bundled first-tree skill version.");
+  }
+  return version;
+}
+
 function ensureClaudeSymlink(targetRoot: string, layout: SkillLayout): void {
   const claudeFull = join(targetRoot, layout.claudePath);
   mkdirSync(dirname(claudeFull), { recursive: true });

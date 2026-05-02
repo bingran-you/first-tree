@@ -105,8 +105,8 @@ That means:
 - the canonical five-skill payloads now live under `skills/`
 - the tree lifecycle surface now has real `init`, `bootstrap`, `bind`,
   `integrate`, `workspace sync`, `verify`, `publish`, `generate-codeowners`,
-  `install-claude-code-hook`, and `inject-context` commands, while `upgrade`
-  and `review` are still being ported back
+  `install-claude-code-hook`, `inject-context`, `upgrade`, and `review`
+  commands, while higher-level sync/write and tree adoption work still remains
 
 ## Quickstart
 
@@ -170,12 +170,12 @@ use today and which ones require an existing tree binding.
 | `first-tree tree integrate`                | Install local tree integration without mutating the tree repo | implemented                                              |
 | `first-tree tree workspace sync`           | Bind newly added child repos to the shared tree               | implemented                                              |
 | `first-tree tree verify`                   | Validate a tree repo                                          | implemented                                              |
-| `first-tree tree upgrade`                  | Refresh integration and tree metadata                         | placeholder                                              |
+| `first-tree tree upgrade`                  | Refresh integration and tree metadata                         | implemented                                              |
 | `first-tree tree publish`                  | Publish a tree repo and refresh bound repos                   | implemented                                              |
 | `first-tree tree generate-codeowners`      | Generate `.github/CODEOWNERS` from ownership data             | implemented                                              |
 | `first-tree tree install-claude-code-hook` | Install the Claude Code hook wiring                           | implemented                                              |
 | `first-tree tree inject-context`           | Emit the SessionStart payload from `NODE.md`                  | implemented                                              |
-| `first-tree tree review`                   | Run the tree PR review helper                                 | placeholder                                              |
+| `first-tree tree review`                   | Run the tree PR review helper                                 | implemented                                              |
 | `first-tree tree skill <subcommand>`       | Proposal replacement for the old top-level `skill` namespace  | implemented for install, upgrade, list, doctor, and link |
 
 ### `first-tree github scan`

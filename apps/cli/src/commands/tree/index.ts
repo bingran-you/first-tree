@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 
-import { createPlaceholderSubcommand } from "../placeholder.js";
 import type { CommandModule, SubcommandModule } from "../types.js";
 import { registerCommandGroup, registerSubcommands } from "../groups.js";
 import { bindCommand } from "./bind.js";
@@ -12,8 +11,10 @@ import { initCommand } from "./init.js";
 import { integrateCommand } from "./integrate.js";
 import { installClaudeCodeHookCommand } from "./install-claude-code-hook.js";
 import { publishCommand } from "./publish.js";
+import { reviewCommand } from "./review.js";
 import { skillSubcommands } from "./skill.js";
 import { statusCommand } from "./status.js";
+import { upgradeCommand } from "./upgrade.js";
 import { verifyCommand } from "./verify.js";
 import { workspaceSyncCommand } from "./workspace-sync.js";
 
@@ -43,20 +44,12 @@ const treeSubcommands: SubcommandModule[] = [
   bindCommand,
   integrateCommand,
   verifyCommand,
-  createPlaceholderSubcommand({
-    name: "upgrade",
-    description: "Refresh local first-tree integration and tree metadata.",
-    message: "first-tree tree upgrade is not implemented yet.",
-  }),
+  upgradeCommand,
   publishCommand,
   generateCodeownersCommand,
   installClaudeCodeHookCommand,
   injectContextCommand,
-  createPlaceholderSubcommand({
-    name: "review",
-    description: "Run the tree PR review helper.",
-    message: "first-tree tree review is not implemented yet.",
-  }),
+  reviewCommand,
 ];
 
 export const treeCommand: CommandModule = {

@@ -29,7 +29,7 @@ GitHub inbox / automation runtime previously described as `breeze`.
 | `tree bind` / `integrate` / `workspace sync` / `verify`                    | implemented in `apps/cli`                                                                                 |
 | `tree generate-codeowners` / `install-claude-code-hook` / `inject-context` | implemented in `apps/cli`                                                                                 |
 | `tree init` / `bootstrap` / `publish`                                      | implemented in `apps/cli`                                                                                 |
-| `tree upgrade` / `review`                                                  | still placeholder / port-back work                                                                        |
+| `tree upgrade` / `review`                                                  | implemented in `apps/cli`                                                                                 |
 | `tree skill ...`                                                           | implemented for install, upgrade, list, doctor, and link against the canonical shipped `skills/` payloads |
 | `github scan ...`                                                          | implemented by wiring the public CLI to `packages/github-scan`                                            |
 | `hub ...`                                                                  | stub namespace only                                                                                       |
@@ -70,8 +70,8 @@ The following commands remain diagnosable without a binding:
 
 The biggest gaps between this workspace and the historical main branch are:
 
-1. restore the remaining tree engine behind `upgrade` and `review`
-2. finish wiring the shipped `first-tree-sync` and `first-tree-write` skills as the old gardener logic replacement
+1. finish wiring the shipped `first-tree-sync` and `first-tree-write` skills as the old gardener logic replacement
+2. land the remaining skill-version contract and tree adoption sweep
 3. update release notes and operational docs once the runtime behavior matches
    the new public command surface
 
