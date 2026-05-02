@@ -299,6 +299,7 @@ describe("first-tree CLI", () => {
 
     const installResult = await runCli(["tree", "skill", "install", "--root", root]);
     const listResult = await runCli(["tree", "skill", "list", "--root", root]);
+    const listJsonResult = await runCli(["tree", "skill", "list", "--root", root, "--json"]);
     const doctorResult = await runCli(["tree", "skill", "doctor", "--root", root]);
     const linkResult = await runCli(["tree", "skill", "link", "--root", root]);
 
@@ -308,6 +309,9 @@ describe("first-tree CLI", () => {
     expect(listResult.code).toBe(0);
     expect(listResult.stdout).toContain("first-tree-onboarding");
     expect(listResult.stdout).toContain("installed");
+    const listJson = JSON.parse(listJsonResult.stdout);
+    expect(listJson[0].cliCompat).toBe(">=0.4.0 <0.5.0");
+    expect(listJson[0].cliVersion).toBe("0.4.0-alpha.1");
 
     expect(doctorResult.code).toBe(0);
     expect(doctorResult.stdout).toContain("OK first-tree");

@@ -165,7 +165,7 @@ describe("first-tree program", () => {
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout.trim()).toBe("0.3.1-alpha");
+    expect(result.stdout.trim()).toBe("0.4.0-alpha.1");
   });
 
   it("prints root help with an all-commands appendix", async () => {

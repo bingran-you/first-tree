@@ -1,6 +1,6 @@
 {
   "name": "first-tree-monorepo",
-  "version": "0.3.1-alpha",
+  "version": "0.4.0-alpha.1",
   "private": true,
   "description": "Workspace for the first-tree CLI, GitHub Scan automation, and shared packages.",
   "keywords": [

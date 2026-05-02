@@ -1,5 +1,8 @@
 ---
 name: first-tree-write
+version: 0.4.0-alpha.1
+cliCompat:
+  first-tree: ">=0.4.0 <0.5.0"
 description: Write Context Tree updates from explicit source material such as code PRs, design docs, meeting notes, or raw text. Use when the user gives you concrete inputs and wants the right durable tree changes drafted, linked, and reviewed. This skill is source-driven and targeted; use `first-tree-sync` instead for broad drift audits.
 ---
 

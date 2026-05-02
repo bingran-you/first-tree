@@ -1,5 +1,8 @@
 ---
 name: first-tree-sync
+version: 0.4.0-alpha.1
+cliCompat:
+  first-tree: ">=0.4.0 <0.5.0"
 description: Audit and repair drift between merged code and the Context Tree. Use when the tree may be stale, wrong, outdated, or missing coverage for recent code changes, after a large merge, before release, or when a GitHub notification indicates that tree context may need review. This skill owns broad drift discovery; use `first-tree-write` instead when the user gives explicit source material to write into the tree.
 ---
 

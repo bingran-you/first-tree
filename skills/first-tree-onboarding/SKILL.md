@@ -1,5 +1,8 @@
 ---
 name: first-tree-onboarding
+version: 0.4.0-alpha.1
+cliCompat:
+  first-tree: ">=0.4.0 <0.5.0"
 description: Onboard a repo or workspace to First Tree using the current CLI surface and the proposal-aligned five-step setup flow. Use when a repo is unbound, when a workspace needs a shared tree, when you need to choose between creating a new tree and binding an existing one, or when you need to install or start the GitHub scan daemon and prepare agent templates.
 ---
 

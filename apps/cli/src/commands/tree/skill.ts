@@ -44,11 +44,16 @@ function runListSkillCommand(context: CommandContext): void {
   }
 
   const nameWidth = Math.max(...rows.map((row) => row.name.length));
-  console.log(`${"NAME".padEnd(nameWidth)}  STATUS     VERSION`);
-  console.log("-".repeat(nameWidth + 18));
+  const compatWidth = Math.max(...rows.map((row) => (row.cliCompat ?? "-").length), 10);
+  console.log(
+    `${"NAME".padEnd(nameWidth)}  STATUS     VERSION        CLI COMPAT`.padEnd(
+      nameWidth + compatWidth + 23,
+    ),
+  );
+  console.log("-".repeat(nameWidth + compatWidth + 23));
   for (const row of rows) {
     console.log(
-      `${row.name.padEnd(nameWidth)}  ${(row.installed ? "installed" : "missing").padEnd(9)}  ${row.version ?? "-"}`,
+      `${row.name.padEnd(nameWidth)}  ${(row.installed ? "installed" : "missing").padEnd(9)}  ${(row.version ?? "-").padEnd(13)} ${(row.cliCompat ?? "-").padEnd(compatWidth)}`,
     );
   }
 }

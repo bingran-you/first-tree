@@ -31,6 +31,8 @@ type SkillLayout = {
 export type SkillEntryKind = "missing" | "symlink" | "directory";
 
 export type SkillStatus = {
+  cliCompat: string | null;
+  cliVersion: string | null;
   name: SkillName;
   installed: boolean;
   version: string | null;
@@ -41,10 +43,13 @@ export type SkillStatus = {
 };
 
 export type SkillDiagnosis = {
+  cliVersion: string | null;
   name: SkillName;
   ok: boolean;
   problems: string[];
 };
+
+const FRONTMATTER_RE = /^---\s*\n(.*?)\n---/su;
 
 export type ManagedFileAction = "created" | "updated" | "unchanged" | "skipped";
 
@@ -164,6 +169,150 @@ export function readBundledSkillVersion(): string {
   return version;
 }
 
+function readSkillFrontmatterMetadata(path: string): {
+  cliCompat: string | null;
+  frontmatterVersion: string | null;
+} {
+  const skillPath = join(path, "SKILL.md");
+
+  if (!existsSync(skillPath)) {
+    return {
+      cliCompat: null,
+      frontmatterVersion: null,
+    };
+  }
+
+  try {
+    const text = readFileSync(skillPath, "utf8");
+    const match = text.match(FRONTMATTER_RE);
+    if (!match?.[1]) {
+      return {
+        cliCompat: null,
+        frontmatterVersion: null,
+      };
+    }
+
+    const frontmatter = match[1];
+    const versionMatch = frontmatter.match(/^version:\s*["']?(.+?)["']?\s*$/mu);
+    const cliCompatMatch = frontmatter.match(
+      /^cliCompat:\s*\n\s*first-tree:\s*["']?(.+?)["']?\s*$/mu,
+    );
+
+    return {
+      cliCompat: cliCompatMatch?.[1] ?? null,
+      frontmatterVersion: versionMatch?.[1] ?? null,
+    };
+  } catch {
+    return {
+      cliCompat: null,
+      frontmatterVersion: null,
+    };
+  }
+}
+
+function readCliVersionFrom(startDir: string): string | null {
+  let currentDir = resolve(startDir);
+
+  while (true) {
+    const candidate = join(currentDir, "package.json");
+    if (existsSync(candidate)) {
+      try {
+        const parsed = JSON.parse(readFileSync(candidate, "utf8")) as { version?: unknown };
+        return typeof parsed.version === "string" ? parsed.version : null;
+      } catch {
+        return null;
+      }
+    }
+
+    const parentDir = dirname(currentDir);
+    if (parentDir === currentDir) {
+      return null;
+    }
+
+    currentDir = parentDir;
+  }
+}
+
+function parseSemverCore(version: string): [number, number, number] | null {
+  const match = version.trim().match(/^(\d+)\.(\d+)\.(\d+)/u);
+  if (!match) {
+    return null;
+  }
+
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareSemver(left: string, right: string): number | null {
+  const leftParts = parseSemverCore(left);
+  const rightParts = parseSemverCore(right);
+
+  if (leftParts === null || rightParts === null) {
+    return null;
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] < rightParts[index] ? -1 : 1;
+    }
+  }
+
+  return 0;
+}
+
+function satisfiesComparator(version: string, comparator: string): boolean | null {
+  const match = comparator.trim().match(/^(>=|>|<=|<|=)\s*(.+)$/u);
+  if (!match) {
+    return null;
+  }
+
+  const comparison = compareSemver(version, match[2]);
+  if (comparison === null) {
+    return null;
+  }
+
+  switch (match[1]) {
+    case ">=":
+      return comparison >= 0;
+    case ">":
+      return comparison > 0;
+    case "<=":
+      return comparison <= 0;
+    case "<":
+      return comparison < 0;
+    case "=":
+      return comparison === 0;
+    default:
+      return null;
+  }
+}
+
+function isCliCompatible(cliVersion: string | null, cliCompat: string | null): boolean | null {
+  if (cliVersion === null || cliCompat === null) {
+    return null;
+  }
+
+  const comparators = cliCompat
+    .split(/\s+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (comparators.length === 0) {
+    return null;
+  }
+
+  for (const comparator of comparators) {
+    const satisfied = satisfiesComparator(cliVersion, comparator);
+    if (satisfied === null) {
+      return null;
+    }
+    if (!satisfied) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function ensureClaudeSymlink(targetRoot: string, layout: SkillLayout): void {
   const claudeFull = join(targetRoot, layout.claudePath);
   mkdirSync(dirname(claudeFull), { recursive: true });
@@ -194,14 +343,22 @@ export function copyCanonicalSkills(targetRoot: string): void {
 }
 
 export function collectSkillStatus(targetRoot: string): readonly SkillStatus[] {
+  const cliVersion = readCliVersionFrom(dirname(fileURLToPath(import.meta.url)));
+
   return allSkillLayouts().map((layout) => {
     const agentsFull = join(targetRoot, layout.agentsPath);
     const claudeFull = join(targetRoot, layout.claudePath);
     const agents = inspectSkillEntry(agentsFull);
     const claude = inspectSkillEntry(claudeFull);
     const installed = agents.kind !== "missing" && claude.kind !== "missing";
+    const metadata =
+      agents.kind === "missing"
+        ? { cliCompat: null, frontmatterVersion: null }
+        : readSkillFrontmatterMetadata(agentsFull);
 
     return {
+      cliCompat: metadata.cliCompat,
+      cliVersion,
       name: layout.name,
       installed,
       version: agents.kind === "missing" ? null : readVersion(agentsFull),
@@ -214,12 +371,18 @@ export function collectSkillStatus(targetRoot: string): readonly SkillStatus[] {
 }
 
 export function collectSkillDiagnosis(targetRoot: string): readonly SkillDiagnosis[] {
+  const cliVersion = readCliVersionFrom(dirname(fileURLToPath(import.meta.url)));
+
   return allSkillLayouts().map((layout) => {
     const problems: string[] = [];
     const agentsFull = join(targetRoot, layout.agentsPath);
     const claudeFull = join(targetRoot, layout.claudePath);
     const agents = inspectSkillEntry(agentsFull);
     const claude = inspectSkillEntry(claudeFull);
+    const metadata =
+      agents.kind === "missing"
+        ? { cliCompat: null, frontmatterVersion: null }
+        : readSkillFrontmatterMetadata(agentsFull);
 
     if (agents.kind === "missing") {
       problems.push(`missing: ${layout.agentsPath}`);
@@ -227,6 +390,28 @@ export function collectSkillDiagnosis(targetRoot: string): readonly SkillDiagnos
       for (const requiredFile of requiredFilesForSkill(layout.name)) {
         if (!existsSync(join(agentsFull, requiredFile))) {
           problems.push(`${layout.agentsPath}/${requiredFile} does not exist`);
+        }
+      }
+
+      const version = readVersion(agentsFull);
+      if (metadata.frontmatterVersion === null) {
+        problems.push(`${layout.agentsPath}/SKILL.md frontmatter is missing version`);
+      } else if (version !== null && metadata.frontmatterVersion !== version) {
+        problems.push(
+          `${layout.agentsPath}/SKILL.md version ${metadata.frontmatterVersion} does not match VERSION ${version}`,
+        );
+      }
+
+      if (metadata.cliCompat === null) {
+        problems.push(`${layout.agentsPath}/SKILL.md frontmatter is missing cliCompat.first-tree`);
+      } else {
+        const compatible = isCliCompatible(cliVersion, metadata.cliCompat);
+        if (compatible === false) {
+          problems.push(
+            `${layout.name} requires first-tree ${metadata.cliCompat}, but the current CLI version is ${cliVersion ?? "unknown"}`,
+          );
+        } else if (compatible === null) {
+          problems.push(`${layout.name} has an unreadable cliCompat range: ${metadata.cliCompat}`);
         }
       }
     }
@@ -242,6 +427,7 @@ export function collectSkillDiagnosis(targetRoot: string): readonly SkillDiagnos
     }
 
     return {
+      cliVersion,
       name: layout.name,
       ok: problems.length === 0,
       problems,
