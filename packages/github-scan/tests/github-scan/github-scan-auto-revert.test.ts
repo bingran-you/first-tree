@@ -178,7 +178,7 @@ describe("shouldAutoRevertHuman — issue #358 guards", () => {
 
 describe("autoRevertHumanLabels — driver", () => {
   it("strips github-scan:human via gh.removeLabel and mutates entry.labels in place when guards pass", () => {
-    const removeLabel = vi.fn();
+    const removeLabel = vi.fn().mockReturnValue(true);
     const stubGh = { removeLabel } as unknown as GhClient;
     const entry = makeEntry();
 
@@ -248,6 +248,35 @@ describe("autoRevertHumanLabels — driver", () => {
 
     expect(removeLabel).not.toHaveBeenCalled();
     expect(out.reverted).toEqual([]);
+  });
+
+  it("does not mutate entry.labels or record a revert when gh.removeLabel fails (issue #364)", () => {
+    // Simulate a transient `gh` API failure: removeLabel returns false.
+    // Local inbox state must not drift from GitHub's truth — the daemon
+    // should leave the label in place and emit a warning so the next
+    // poll cycle retries naturally.
+    const removeLabel = vi.fn().mockReturnValue(false);
+    const stubGh = { removeLabel } as unknown as GhClient;
+    const entry = makeEntry();
+
+    const out = autoRevertHumanLabels([entry], {
+      gh: stubGh,
+      agentLogin: AGENT,
+      fetchLabelAppliedAt: () => LABEL_TS,
+      fetchComments: () => [
+        {
+          author: "alice",
+          body: "Go ahead with option A — please proceed and ping me if you hit anything weird.",
+          createdAt: "2026-04-30T11:00:00Z",
+        },
+      ],
+    });
+
+    expect(removeLabel).toHaveBeenCalledTimes(1);
+    expect(entry.labels).toContain("github-scan:human");
+    expect(out.reverted).toEqual([]);
+    expect(out.warnings.length).toBe(1);
+    expect(out.warnings[0]).toMatch(/removeLabel failed/);
   });
 
   it("warns and skips when the label-event timestamp cannot be fetched (degrades safely)", () => {

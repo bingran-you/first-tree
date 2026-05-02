@@ -30,17 +30,9 @@ export class GhExecError extends Error {
   readonly stderr: string;
   readonly stdout: string;
   readonly argv: readonly string[];
-  constructor(
-    argv: readonly string[],
-    result: GhExecResult,
-    action: string,
-  ) {
+  constructor(argv: readonly string[], result: GhExecResult, action: string) {
     const head = result.stderr.split("\n")[0]?.trim();
-    super(
-      `gh ${action} failed (exit ${result.status ?? "signal"})${
-        head ? `: ${head}` : ""
-      }`,
-    );
+    super(`gh ${action} failed (exit ${result.status ?? "signal"})${head ? `: ${head}` : ""}`);
     this.status = result.status;
     this.stderr = result.stderr;
     this.stdout = result.stdout;
@@ -131,15 +123,7 @@ export class GhClient {
     color: string,
     description: string,
   ): void {
-    const first = this.run([
-      "issue",
-      "edit",
-      String(number),
-      "--repo",
-      repo,
-      "--add-label",
-      label,
-    ]);
+    const first = this.run(["issue", "edit", String(number), "--repo", repo, "--add-label", label]);
     if (first.status === 0) return;
 
     // Create (or `--force` upsert) the label, then retry.
@@ -155,24 +139,22 @@ export class GhClient {
       description,
       "--force",
     ]);
-    this.run([
-      "issue",
-      "edit",
-      String(number),
-      "--repo",
-      repo,
-      "--add-label",
-      label,
-    ]);
+    this.run(["issue", "edit", String(number), "--repo", repo, "--add-label", label]);
   }
 
   /**
-   * Remove a single label. Errors are swallowed — `gh` returns non-zero
-   * if the label isn't on the item, which is fine. Mirrors the per-label
-   * loop in `bin/github-scan-status-manager:98-103`.
+   * Remove a single label. Returns `true` on success (gh exit 0), `false`
+   * otherwise. Callers that need to keep local state in sync with GitHub
+   * (e.g. `auto-revert.ts`) MUST check this — a transient API error,
+   * 403, or rate-limit will return `false` and the caller should NOT
+   * mutate its in-memory mirror. The return value is intentionally a
+   * boolean (not a throw) to keep the previous "swallow + log" callers
+   * working without try/catch noise; the underlying failure mode (gh
+   * returns non-zero when the label isn't on the item) is harmless and
+   * still represented as `false`. See `bin/github-scan-status-manager:98-103`.
    */
-  removeLabel(repo: string, number: number, label: string): void {
-    this.run([
+  removeLabel(repo: string, number: number, label: string): boolean {
+    const result = this.run([
       "issue",
       "edit",
       String(number),
@@ -181,18 +163,14 @@ export class GhClient {
       "--remove-label",
       label,
     ]);
+    return result.status === 0;
   }
 
   /**
    * Create (or force-overwrite) a label on a repo. Used by
    * `status-manager ensure-labels`. Errors swallowed to match bash.
    */
-  createLabel(
-    repo: string,
-    label: string,
-    color: string,
-    description: string,
-  ): GhExecResult {
+  createLabel(repo: string, label: string, color: string, description: string): GhExecResult {
     return this.run([
       "label",
       "create",

@@ -246,7 +246,18 @@ export function autoRevertHumanLabels(
     });
     if (!decide) continue;
 
-    deps.gh.removeLabel(entry.repo, entry.number, "github-scan:human");
+    // Only mutate local state when `gh` actually removed the label. If
+    // `removeLabel` returns `false` (transient API failure, 403,
+    // rate-limit) we leave `entry.labels` alone so the local inbox does
+    // not drift from GitHub's truth. The next poll cycle re-reads the
+    // live label set and will retry naturally. See issue #364.
+    const removed = deps.gh.removeLabel(entry.repo, entry.number, "github-scan:human");
+    if (!removed) {
+      warnings.push(
+        `auto-revert: removeLabel failed for ${entry.repo}#${entry.number}; will retry next cycle`,
+      );
+      continue;
+    }
     entry.labels = entry.labels.filter((l) => l !== "github-scan:human");
     reverted.push(entry.id);
   }
