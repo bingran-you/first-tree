@@ -204,6 +204,49 @@ describe("first-tree CLI", () => {
     expect(result.stdout).toContain('"nested/repo-b"');
   });
 
+  it("preserves the workspace root entrypoint after binding child members", async () => {
+    const workspaceRoot = await mkdtemp(resolve(tmpdir(), "first-tree-ws-entrypoint-"));
+    const treeRoot = await mkdtemp(resolve(tmpdir(), "first-tree-ws-entrypoint-tree-"));
+    const repoA = resolve(workspaceRoot, "repo-a");
+    const repoB = resolve(workspaceRoot, "repo-b");
+    await mkdir(repoA, { recursive: true });
+    await mkdir(repoB, { recursive: true });
+    await writeFile(resolve(repoA, ".git"), "gitdir: /tmp/repo-a\n");
+    await writeFile(resolve(repoB, ".git"), "gitdir: /tmp/repo-b\n");
+
+    const initResult = await runCli(
+      [
+        "tree",
+        "init",
+        "--tree-path",
+        treeRoot,
+        "--tree-mode",
+        "shared",
+        "--scope",
+        "workspace",
+        "--workspace-id",
+        "ws-entrypoint-test",
+      ],
+      { cwd: workspaceRoot },
+    );
+    expect(initResult.code).toBe(0);
+    expect(initResult.stderr).toBe("");
+
+    const sourceJson = JSON.parse(
+      await readFile(resolve(workspaceRoot, ".first-tree", "source.json"), "utf8"),
+    );
+    expect(sourceJson.bindingMode).toBe("workspace-root");
+    // The workspace root must keep its own `/workspaces/<id>` entrypoint even
+    // after `repo-a` and `repo-b` are bound as members. A regression here means
+    // the root binding has been silently overwritten with the last member's
+    // address (e.g. `/workspaces/<id>/repos/repo-b`).
+    expect(sourceJson.tree.entrypoint).toBe("/workspaces/ws-entrypoint-test");
+    expect(sourceJson.members.map((m) => m.entrypoint).sort()).toEqual([
+      "/workspaces/ws-entrypoint-test/repos/repo-a",
+      "/workspaces/ws-entrypoint-test/repos/repo-b",
+    ]);
+  });
+
   it("verifies a freshly initialized tree (init -> verify happy path)", async () => {
     const sourceRoot = await makeGitRepoDir("first-tree-init-verify-source-");
     const treeRoot = await mkdtemp(resolve(tmpdir(), "first-tree-init-verify-tree-"));

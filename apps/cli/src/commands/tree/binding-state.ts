@@ -406,10 +406,20 @@ export function upsertWorkspaceMember(
     return nameOrder === 0 ? left.sourceId.localeCompare(right.sourceId) : nameOrder;
   });
 
+  // The `tree` argument carries the *member's* entrypoint (e.g.
+  // `/workspaces/<id>/repos/<repo>`). The workspace root has its own entrypoint
+  // (e.g. `/workspaces/<id>`) that must be preserved here — otherwise binding a
+  // child member silently overwrites the root's entrypoint with the member's
+  // address, breaking any downstream consumer that keys off the root binding.
+  const mergedTree: BoundTreeReference = {
+    ...tree,
+    entrypoint: current.tree?.entrypoint ?? tree.entrypoint,
+  };
+
   writeSourceState(workspaceRoot, {
     ...current,
     members: nextMembers,
-    tree,
+    tree: mergedTree,
     workspaceId,
   });
 }
