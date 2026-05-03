@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const FRONTMATTER_RE = /^---\s*\n(.*?)\n---/su;
@@ -9,6 +9,10 @@ const TITLE_RE = /^title:\s*['"]?(.+?)['"]?\s*$/mu;
 
 const SKIP_DIRS = new Set(["node_modules", "__pycache__"]);
 const SKIP_FILES = new Set(["AGENTS.md", "CLAUDE.md"]);
+// Managed framework files that bootstrap writes as symlinks into `.agents/skills/`.
+// They carry skill-payload frontmatter (`name:`/`version:`), not tree-node frontmatter
+// (`title:`/`owners:`), so the node validator must not treat them as tree content.
+const MANAGED_SYMLINK_FILES = new Set(["WHITEPAPER.md"]);
 
 function rel(path: string, root: string): string {
   return relative(root, path).replace(/\\/gu, "/");
@@ -49,9 +53,13 @@ function collectMarkdownFiles(treeRoot: string): string[] {
           walk(fullPath);
           continue;
         }
-        if (stat.isFile() && entry.endsWith(".md") && !SKIP_FILES.has(entry)) {
-          files.push(fullPath);
+        if (!stat.isFile() || !entry.endsWith(".md") || SKIP_FILES.has(entry)) {
+          continue;
         }
+        if (MANAGED_SYMLINK_FILES.has(entry) && lstatSync(fullPath).isSymbolicLink()) {
+          continue;
+        }
+        files.push(fullPath);
       } catch {
         // Ignore unreadable entries.
       }

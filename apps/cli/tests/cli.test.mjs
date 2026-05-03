@@ -204,6 +204,23 @@ describe("first-tree CLI", () => {
     expect(result.stdout).toContain('"nested/repo-b"');
   });
 
+  it("verifies a freshly initialized tree (init -> verify happy path)", async () => {
+    const sourceRoot = await makeGitRepoDir("first-tree-init-verify-source-");
+    const treeRoot = await mkdtemp(resolve(tmpdir(), "first-tree-init-verify-tree-"));
+
+    const initResult = await runCli(
+      ["tree", "init", "--tree-path", treeRoot, "--tree-mode", "dedicated", "--scope", "repo"],
+      { cwd: sourceRoot },
+    );
+    expect(initResult.code).toBe(0);
+    expect(initResult.stderr).toBe("");
+
+    const verifyResult = await runCli(["tree", "verify", "--json"], { cwd: treeRoot });
+    expect(verifyResult.stderr).toBe("");
+    expect(verifyResult.stdout).toContain('"ok": true');
+    expect(verifyResult.code).toBe(0);
+  });
+
   it("verifies a simple tree repo", async () => {
     const treeRoot = await makeGitRepoDir("first-tree-verify-tree-");
     await mkdir(resolve(treeRoot, ".first-tree"), { recursive: true });
