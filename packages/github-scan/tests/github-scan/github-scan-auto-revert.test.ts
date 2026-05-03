@@ -4,7 +4,9 @@
  *
  * The five required cases from the issue:
  *   (a) own-comment ignored
- *   (b) short ack ignored
+ *   (b) short ack now triggers revert (issue #382 — the body-length guard
+ *       was removed because it produced false negatives for legitimate
+ *       short approvals like `LGTM` and `请继续推进`)
  *   (c) reaction ignored
  *   (d) genuine reply triggers revert
  *   (e) pre-label comment does NOT trigger revert
@@ -71,17 +73,16 @@ describe("shouldAutoRevertHuman — issue #358 guards", () => {
     ).toBe(false);
   });
 
-  it("(b) short ack ignored: a 'ok thx' post-label human reply does not trigger revert", () => {
+  it("(b) short ack triggers revert (issue #382): a short post-label human reply now triggers revert", () => {
+    // Pre-#382 the body-length guard rejected these. Post-#382 a short
+    // human reply is treated as a real signal and the label is reverted —
+    // the agent will re-evaluate on the next cycle and re-apply
+    // `github-scan:human` if there is nothing actionable.
     const comments: IssueComment[] = [
       {
         author: "alice",
         body: "ok thx",
         createdAt: "2026-04-30T11:00:00Z",
-      },
-      {
-        author: "alice",
-        body: "👍",
-        createdAt: "2026-04-30T11:01:00Z",
       },
     ];
     expect(
@@ -90,7 +91,41 @@ describe("shouldAutoRevertHuman — issue #358 guards", () => {
         labelAppliedAt: LABEL_TS,
         comments,
       }),
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it("(b1) `LGTM` (4 chars) from a non-agent user, post-label, triggers revert (issue #382)", () => {
+    const comments: IssueComment[] = [
+      {
+        author: "alice",
+        body: "LGTM",
+        createdAt: "2026-04-30T11:00:00Z",
+      },
+    ];
+    expect(
+      shouldAutoRevertHuman({
+        agentLogin: AGENT,
+        labelAppliedAt: LABEL_TS,
+        comments,
+      }),
+    ).toBe(true);
+  });
+
+  it("(b2) `请继续推进` (5 Chinese chars) from a non-agent user, post-label, triggers revert (issue #382)", () => {
+    const comments: IssueComment[] = [
+      {
+        author: "alice",
+        body: "请继续推进",
+        createdAt: "2026-04-30T11:00:00Z",
+      },
+    ];
+    expect(
+      shouldAutoRevertHuman({
+        agentLogin: AGENT,
+        labelAppliedAt: LABEL_TS,
+        comments,
+      }),
+    ).toBe(true);
   });
 
   it("(c) reaction ignored: a comment with empty body (the shape we'd see for a reaction-only event if it leaked through) does not trigger revert", () => {
@@ -110,7 +145,7 @@ describe("shouldAutoRevertHuman — issue #358 guards", () => {
     ).toBe(false);
   });
 
-  it("(d) genuine reply triggers revert: a >20-char post-label human comment triggers revert", () => {
+  it("(d) genuine reply triggers revert: a long post-label human comment triggers revert", () => {
     const comments: IssueComment[] = [
       {
         author: "alice",
@@ -149,7 +184,7 @@ describe("shouldAutoRevertHuman — issue #358 guards", () => {
     const comments: IssueComment[] = [
       {
         author: "alice",
-        body: "Plenty of words here to be a real reply, definitely longer than 20 chars.",
+        body: "Plenty of words here to be a real reply.",
         createdAt: LABEL_TS,
       },
     ];

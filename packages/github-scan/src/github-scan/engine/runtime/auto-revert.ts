@@ -8,12 +8,17 @@
  * pure and unchanged) then derives `new` on the next cycle and the
  * dispatcher picks the item up.
  *
- * Guards (issue #358 acceptance criteria):
+ * Guards (issue #358 acceptance criteria, updated by issue #382):
  *   1. Comment author MUST NOT be the agent itself (the daemon's identity).
- *   2. Comment body length > 20 chars (filters `👍`, `ok`, `thx`-only acks).
- *   3. Reactions alone do NOT count as a comment (callers pass real comments only).
- *   4. The comment's `created_at` MUST be strictly after the label's
+ *   2. Reactions alone do NOT count as a comment (callers pass real comments only;
+ *      defensively, empty-body comments are also rejected).
+ *   3. The comment's `created_at` MUST be strictly after the label's
  *      `created_at` / label-event timestamp.
+ *
+ * Note (issue #382): the original `body.trim().length > 20` guard was dropped
+ * because it produced false negatives for legitimate short approvals
+ * (`LGTM`, `go ahead`, `请继续推进`). Reactions are not comments in the
+ * GitHub REST API, so the "filter emoji acks" rationale was already moot.
  *
  * This module exposes:
  *   - `shouldAutoRevertHuman` — the pure decision function (testable in isolation).
@@ -25,9 +30,6 @@
 
 import type { GhClient } from "./gh.js";
 import type { InboxEntry } from "./types.js";
-
-/** Minimum body length (chars) for a comment to count as a real reply. */
-export const AUTO_REVERT_MIN_BODY_CHARS = 20;
 
 /** Page size used for the timeline + comments REST endpoints. */
 export const AUTO_REVERT_PAGE_SIZE = 100;
@@ -76,16 +78,11 @@ export function shouldAutoRevertHuman(input: AutoRevertInput): boolean {
     // Guard 1: own-comment ignored.
     if (comment.author.toLowerCase() === agentLogin) continue;
 
-    // Guard 3: reactions alone do not count — callers pass only real
+    // Guard 2: reactions alone do not count — callers pass only real
     // comments here, but we also defensively reject empty bodies.
     if (comment.body.length === 0) continue;
 
-    // Guard 2: short ack ignored. Length is measured on the trimmed
-    // body so trailing whitespace doesn't accidentally promote a "ok\n"
-    // to a real reply.
-    if (comment.body.trim().length <= AUTO_REVERT_MIN_BODY_CHARS) continue;
-
-    // Guard 4: must be strictly after the label timestamp.
+    // Guard 3: must be strictly after the label timestamp.
     const commentTs = Date.parse(comment.createdAt);
     if (Number.isNaN(commentTs)) continue;
     if (commentTs <= labelTs) continue;
