@@ -73,12 +73,12 @@ Canonical shipped skills in the current proposal:
   skills/first-tree-github-scan
 ```
 
-| Surface                      | What it is                                                                                                        | Current workspace status                                                                                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`first-tree tree`**        | The Context Tree layer. This is where onboarding, inspection, validation, publishing, and skill maintenance live. | `inspect`, `status`, and `help onboarding` are wired. The rest of the proposal surface is present as scaffolding while the old tree runtime is ported back.                        |
-| **`first-tree github scan`** | The GitHub inbox runtime. This is the new public home for the old `breeze` behavior.                              | Fully wired to [`packages/github-scan/`](./packages/github-scan/README.md), with fail-closed tree binding checks at the CLI entry and the tree repo handed through to the runtime. |
-| **`first-tree hub`**         | Reserved namespace for future Hub integration.                                                                    | Stub commands only in this workspace snapshot.                                                                                                                                     |
-| **`skills/`**                | Canonical skill payload source for the proposal's five shipped skills.                                            | Present in this repo and copied into the built package. `first-tree tree skill ...` now installs, upgrades, lists, diagnoses, and repairs these canonical payloads.                |
+| Surface                      | What it is                                                                                                        | Current workspace status                                                                                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`first-tree tree`**        | The Context Tree layer. This is where onboarding, inspection, validation, publishing, and skill maintenance live. | The tree lifecycle surface is implemented in this workspace: `inspect`, `status`, `init`, `bootstrap`, `bind`, `integrate`, `workspace sync`, `verify`, `publish`, `upgrade`, and the maintenance helpers are live. |
+| **`first-tree github scan`** | The GitHub inbox runtime. This is the new public home for the old `breeze` behavior.                              | Fully wired to [`packages/github-scan/`](./packages/github-scan/README.md), with fail-closed tree binding checks at the CLI entry and the tree repo handed through to the runtime.                                  |
+| **`first-tree hub`**         | Reserved namespace for future Hub integration.                                                                    | Stub commands only in this workspace snapshot.                                                                                                                                                                      |
+| **`skills/`**                | Canonical skill payload source for the proposal's five shipped skills.                                            | Present in this repo and copied into the built package. `first-tree tree skill ...` now installs, upgrades, lists, diagnoses, and repairs these canonical payloads.                                                 |
 
 ## Why first-tree
 
@@ -94,8 +94,8 @@ Canonical shipped skills in the current proposal:
 ## Current Workspace Note
 
 This repository is already on the latest fetched `agent-team-foundation/first-tree`
-`main`, but it is still in the middle of a port-back from the old main branch
-into a pnpm workspace plus the `2026-05-01` CLI and skill restructure proposal.
+`main`, and it now carries the proposal-aligned pnpm workspace plus the
+`2026-05-01` CLI and skill restructure surface.
 
 That means:
 
@@ -105,8 +105,11 @@ That means:
 - the canonical five-skill payloads now live under `skills/`
 - the tree lifecycle surface now has real `init`, `bootstrap`, `bind`,
   `integrate`, `workspace sync`, `verify`, `publish`, `generate-codeowners`,
-  `install-claude-code-hook`, `inject-context`, `upgrade`, and `review`
-  commands, while higher-level sync/write and tree adoption work still remains
+  `install-claude-code-hook`, `inject-context`, `upgrade`, `review`, and
+  `tree skill ...` commands
+- new trees scaffold default agent-template files and an org-config placeholder
+- `github scan` now routes agents through the shipped First Tree skill set,
+  while deeper sync/write orchestration remains an area for future refinement
 
 ## Quickstart
 

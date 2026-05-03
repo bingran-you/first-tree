@@ -30,7 +30,8 @@ At the moment:
   `tree install-claude-code-hook`, `tree inject-context`, `tree upgrade`, and
   `tree review` are implemented
 - `tree help onboarding` prints the short in-CLI version of this guide
-- `tree init`, `tree bootstrap`, and `tree publish` are now implemented
+- `tree init`, `tree bootstrap`, and `tree publish` are implemented
+- new trees now scaffold default agent-template files and `.first-tree/org.yaml`
 - `github scan` is the most complete runtime in the workspace today
 
 ## When To Reach For `github scan`

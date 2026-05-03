@@ -30,10 +30,6 @@ const TREE_ONBOARDING_GUIDE = `first-tree tree help onboarding
 4. If this root is a workspace, follow with \`first-tree tree workspace sync\`.
 5. Before starting \`first-tree github scan\`, make sure a binding exists in
    \`.first-tree/source.json\` or pass \`--tree-repo <owner/repo>\`.
-
-This restructured workspace is still being ported back from the old main branch.
-Some tree subcommands are scaffolding today, but this is the intended public
-command surface for the 0.4.0 CLI layout.
 `;
 
 const treeSubcommands: SubcommandModule[] = [

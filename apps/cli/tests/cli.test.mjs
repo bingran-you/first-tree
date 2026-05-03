@@ -407,12 +407,13 @@ describe("first-tree CLI", () => {
     expect(workspaceHelp.stdout).toContain("sync");
   });
 
-  it("runs hub placeholder commands successfully", async () => {
+  it("fails hub placeholder commands with a not-implemented error", async () => {
     const result = await runCli(["hub", "start"]);
 
-    expect(result.code).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout.trim()).toBe("first-tree hub start is not implemented yet.");
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("first-tree hub start is not implemented yet.");
+    expect(result.stderr).toContain("Usage: first-tree hub start");
   });
 
   it("prints subcommand help after an invalid option", async () => {

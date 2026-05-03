@@ -1,7 +1,8 @@
-import type { SubcommandModule } from "../types.js";
+import { failHubNotImplemented } from "./shared.js";
+import type { CommandContext, SubcommandModule } from "../types.js";
 
-export function runStopCommand(): void {
-  console.log("first-tree hub stop is not implemented yet.");
+export function runStopCommand(context: CommandContext): void {
+  failHubNotImplemented(context, "stop");
 }
 
 export const stopCommand: SubcommandModule = {

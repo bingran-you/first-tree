@@ -26,7 +26,7 @@ Run onboarding as a five-step flow:
 
 ## CLI Surface
 
-Use the current CLI where it already exists:
+Use the current CLI surface:
 
 - `first-tree tree inspect --json`
 - `first-tree tree init`
@@ -35,12 +35,9 @@ Use the current CLI where it already exists:
 - `first-tree github scan install`
 - `first-tree github scan start`
 
-When a required tree subcommand is still scaffolded in the current repo, keep
-the workflow aligned to this skill and avoid inventing a new top-level command.
-
 ## Decision Rules
 
 - Prefer a shared tree when many repos need the same decision layer.
 - Prefer a new dedicated tree only when the repo truly owns its own context.
-- Keep the initial onboarding credential-light until the tree scaffold exists.
+- Keep the initial onboarding credential-light until the tree binding and daemon setup are in place.
 - Treat agent-template setup as part of onboarding, not an unrelated afterthought.

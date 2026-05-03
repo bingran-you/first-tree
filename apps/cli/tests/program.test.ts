@@ -43,7 +43,7 @@ afterEach(() => {
   runGitHubScanMock.mockResolvedValue(0);
 });
 
-const commandMessages: Array<{
+const hubCommandMessages: Array<{
   args: string[];
   message: string;
 }> = [
@@ -336,15 +336,14 @@ describe("first-tree program", () => {
     });
   });
 
-  for (const { args, message } of commandMessages) {
-    it(`runs ${args.join(" ")} in process`, async () => {
-      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  for (const { args, message } of hubCommandMessages) {
+    it(`fails ${args.join(" ")} in process`, async () => {
       const result = await runProgram(args, "0.0.0-test");
 
-      expect(result.code).toBe(0);
-      expect(result.stderr).toBe("");
+      expect(result.code).toBe(1);
       expect(result.stdout).toBe("");
-      expect(log).toHaveBeenCalledWith(message);
+      expect(result.stderr).toContain(message);
+      expect(result.stderr).toContain("Usage: first-tree hub");
     });
   }
 
