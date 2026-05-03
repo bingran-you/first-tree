@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -83,9 +77,7 @@ describe("parseResult", () => {
   });
 
   it("handles skipped status", () => {
-    const { status } = parseResult(
-      "GITHUB_SCAN_RESULT: status=skipped summary=already handled",
-    );
+    const { status } = parseResult("GITHUB_SCAN_RESULT: status=skipped summary=already handled");
     expect(status).toBe("skipped");
   });
 });
@@ -98,6 +90,28 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("- Task ID: task-1");
     expect(prompt).toContain("Agent note: this is github-scan.");
     expect(prompt).toContain("GITHUB_SCAN_RESULT: status=");
+  });
+
+  it("loads the shipped first-tree skills and defines explicit sync/write routes", () => {
+    const request = fakeRequest({
+      workspaceDir: "/tmp/workspace-root",
+      treeRepo: "agent-team-foundation/first-tree-context",
+    });
+    const prompt = buildPrompt(request);
+
+    expect(prompt).toContain("/tmp/workspace-root/WHITEPAPER.md");
+    expect(prompt).toContain("/tmp/workspace-root/.agents/skills/first-tree/SKILL.md");
+    expect(prompt).toContain("/tmp/workspace-root/.agents/skills/first-tree-github-scan/SKILL.md");
+    expect(prompt).toContain("/tmp/workspace-root/.agents/skills/first-tree-sync/SKILL.md");
+    expect(prompt).toContain("/tmp/workspace-root/.agents/skills/first-tree-write/SKILL.md");
+    expect(prompt).toContain("Bound tree repo: agent-team-foundation/first-tree-context");
+    expect(prompt).toContain("route=reply");
+    expect(prompt).toContain("route=human");
+    expect(prompt).toContain("route=sync");
+    expect(prompt).toContain("route=write");
+    expect(prompt).toContain(
+      "Do not edit the tree directly from the github-scan skill path unless you have explicitly switched into the sync or write route",
+    );
   });
 
   it("adds Working repository line only when it differs from repo", () => {
@@ -124,7 +138,10 @@ describe("buildPrompt", () => {
     expect(prompt).not.toContain("draft-node");
     expect(prompt).not.toContain("github.com/bingran-you/github-scan");
     expect(prompt).not.toContain("code repo");
-    expect(prompt).toContain('gh issue edit <number> --repo <owner>/<repo> --add-label "github-scan:<status>"');
+    expect(prompt).toContain(
+      'gh issue edit <number> --repo <owner>/<repo> --add-label "github-scan:<status>"',
+    );
+    expect(prompt).not.toContain("first-tree gardener draft-node");
   });
 });
 
@@ -182,18 +199,13 @@ describe("buildAgentEnv", () => {
     expect(env.GITHUB_SCAN_BROKER_DIR).toBe("/opt/shim");
     expect(env.GITHUB_SCAN_SNAPSHOT_DIR).toBe("/snap");
     expect(env.GITHUB_SCAN_TASK_DIR).toBe("/task");
-    expect(env.FIRST_TREE_GITHUB_SCAN_TREE_REPO).toBe(
-      "agent-team-foundation/first-tree-context",
-    );
+    expect(env.FIRST_TREE_GITHUB_SCAN_TREE_REPO).toBe("agent-team-foundation/first-tree-context");
   });
 });
 
 describe("AgentPool", () => {
   it("rotates execution order across calls", () => {
-    const pool = new AgentPool([
-      { kind: "codex" },
-      { kind: "claude" },
-    ]);
+    const pool = new AgentPool([{ kind: "codex" }, { kind: "claude" }]);
     const first = pool.executionOrder().map((r) => r.kind);
     const second = pool.executionOrder().map((r) => r.kind);
     expect(first).toEqual(["codex", "claude"]);
@@ -223,11 +235,7 @@ describe("executeAgent", () => {
       );
       return { statusCode: 0 };
     };
-    const outcome = await executeAgent(
-      { kind: "codex" },
-      request,
-      { timeoutMs: 1_000, spawner },
-    );
+    const outcome = await executeAgent({ kind: "codex" }, request, { timeoutMs: 1_000, spawner });
     expect(outcome.status).toBe("handled");
     expect(outcome.summary).toBe("all good");
     expect(existsSync(join(request.taskDir, "prompt.txt"))).toBe(true);
@@ -238,21 +246,14 @@ describe("executeAgent", () => {
   it("copies claude stdout into runner-output.txt", async () => {
     const request = fakeRequest();
     const spawner: AgentSpawner = async ({ stdoutPath }) => {
-      writeFileSync(
-        stdoutPath,
-        "chatter\nGITHUB_SCAN_RESULT: status=handled summary=ok",
-      );
+      writeFileSync(stdoutPath, "chatter\nGITHUB_SCAN_RESULT: status=handled summary=ok");
       return { statusCode: 0 };
     };
-    const outcome = await executeAgent(
-      { kind: "claude" },
-      request,
-      { timeoutMs: 1_000, spawner },
-    );
+    const outcome = await executeAgent({ kind: "claude" }, request, { timeoutMs: 1_000, spawner });
     expect(outcome.status).toBe("handled");
-    expect(
-      readFileSync(join(request.taskDir, "runner-output.txt"), "utf8"),
-    ).toContain("GITHUB_SCAN_RESULT:");
+    expect(readFileSync(join(request.taskDir, "runner-output.txt"), "utf8")).toContain(
+      "GITHUB_SCAN_RESULT:",
+    );
   });
 
   it("throws on non-zero exit code", async () => {

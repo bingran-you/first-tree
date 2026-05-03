@@ -34,11 +34,11 @@
 
 import {
   createWriteStream,
-  readFileSync,
-  writeFileSync,
   existsSync,
+  readFileSync,
   rmSync,
   type WriteStream,
+  writeFileSync,
 } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
@@ -161,6 +161,7 @@ export function buildPrompt(request: AgentRequest): string {
   const task = request.task;
   const workingRepoLine =
     task.workspaceRepo !== task.repo ? `- Working repository: ${task.workspaceRepo}\n` : "";
+  const firstTreeSkillSection = buildFirstTreeSkillSection(request);
   return (
     `You are responding to a GitHub notification on behalf of ${request.identity.login}.\n` +
     `\n` +
@@ -187,6 +188,8 @@ export function buildPrompt(request: AgentRequest): string {
     `Read the local snapshot files first. Only call \`gh\` when you need fresh data or to publish the final result.\n` +
     `If the task can be completed entirely with GitHub actions (for example replying, reviewing, labeling, or acknowledging a thread), do not inspect or change repository files unless the GitHub request explicitly asks for code changes.\n` +
     `\n` +
+    firstTreeSkillSection +
+    `\n` +
     `Status labeling rule (REQUIRED): label the issue / pull request with your current status using exactly one of:\n` +
     `- \`github-scan:wip\` — you are actively working on it\n` +
     `- \`github-scan:human\` — you need human input or judgment to proceed\n` +
@@ -203,7 +206,41 @@ export function buildPrompt(request: AgentRequest): string {
     `If the task asks for an exact public reply string, preserve that requested string exactly in one public GitHub reply. If the disclosure would change the exact wording, post the disclosure separately in another public comment or review note instead of altering the exact requested string.\n` +
     `\n` +
     `When you are done, finish with exactly one line in this format:\n` +
-    `GITHUB_SCAN_RESULT: status=<handled|skipped|failed> summary=<one-line summary>`
+    `GITHUB_SCAN_RESULT: status=<handled|skipped|failed> route=<reply|human|sync|write> summary=<one-line summary>`
+  );
+}
+
+function buildFirstTreeSkillSection(request: AgentRequest): string {
+  const workspaceRoot = request.workspaceDir;
+  const whitepaperPath = join(workspaceRoot, "WHITEPAPER.md");
+  const whitepaperSkillPath = join(workspaceRoot, ".agents", "skills", "first-tree", "SKILL.md");
+  const githubScanSkillPath = join(
+    workspaceRoot,
+    ".agents",
+    "skills",
+    "first-tree-github-scan",
+    "SKILL.md",
+  );
+  const syncSkillPath = join(workspaceRoot, ".agents", "skills", "first-tree-sync", "SKILL.md");
+  const writeSkillPath = join(workspaceRoot, ".agents", "skills", "first-tree-write", "SKILL.md");
+  const sourceStatePath = join(workspaceRoot, ".first-tree", "source.json");
+  const treeRepoLine =
+    request.treeRepo === undefined ? "" : `- Bound tree repo: ${request.treeRepo}\n`;
+
+  return (
+    `First Tree skill loading rules (REQUIRED):\n` +
+    `- Before making any tree-related decision, read \`${whitepaperPath}\` if it exists; otherwise read \`${whitepaperSkillPath}\`.\n` +
+    `- Always read \`${githubScanSkillPath}\` before deciding how to tag, comment, escalate, or route the notification.\n` +
+    `- Use \`${sourceStatePath}\` as the local binding source of truth for tree repo name, entrypoint, and workspace relationship.\n` +
+    treeRepoLine +
+    `\n` +
+    `Route the task using exactly one of these paths:\n` +
+    `- route=reply — the notification can be handled entirely on GitHub with labels, review, or comments.\n` +
+    `- route=human — a human must step in because ownership, cross-domain impact, or the needed decision is unclear.\n` +
+    `- route=sync — the notification means the tree may be stale, wrong, outdated, or otherwise needs a broad audit. Read \`${syncSkillPath}\` and continue the task under that skill.\n` +
+    `- route=write — the notification provides explicit source material, such as a PR, doc, or note that should be reflected in the tree. Read \`${writeSkillPath}\` and continue the task under that skill.\n` +
+    `\n` +
+    `Do not edit the tree directly from the github-scan skill path unless you have explicitly switched into the sync or write route and loaded the corresponding skill file first.\n`
   );
 }
 
