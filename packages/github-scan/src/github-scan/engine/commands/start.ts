@@ -11,16 +11,10 @@ import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
 import { loadGitHubScanDaemonConfig } from "../runtime/config.js";
-import {
-  parseAllowRepoArg,
-  requireExplicitRepoFilter,
-} from "../runtime/allow-repo.js";
+import { parseAllowRepoArg, requireExplicitRepoFilter } from "../runtime/allow-repo.js";
 import { findServiceLock, isLockStale } from "../daemon/claim.js";
 import { resolveDaemonIdentity } from "../daemon/identity.js";
-import {
-  bootstrapLaunchdJob,
-  supportsLaunchd,
-} from "../daemon/launchd.js";
+import { bootstrapLaunchdJob, supportsLaunchd } from "../daemon/launchd.js";
 import { resolveRunnerHome } from "../daemon/runner-skeleton.js";
 
 export interface RunStartOptions {
@@ -34,6 +28,12 @@ export interface RunStartOptions {
   entrypoint?: string;
   /** Args after the executable (forwarded to the daemon). */
   daemonArgs?: readonly string[];
+  /**
+   * Working directory the launchd job should `cd` into. Defaults to
+   * `process.cwd()` captured when `runStart` runs. Mostly an injection
+   * seam for tests — production callers should let this default.
+   */
+  workingDirectory?: string;
 }
 
 export interface SelfCliInvocation {
@@ -59,14 +59,11 @@ export async function runStart(
   try {
     requireExplicitRepoFilter(parseAllowRepoArg(argv));
   } catch (err) {
-    write(
-      `github-scan: start failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    write(`github-scan: start failed: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
   const home = options.runnerHome ?? parseHome(argv) ?? resolveRunnerHome();
-  const githubScanDir =
-    options.githubScanDir ?? process.env.GITHUB_SCAN_DIR ?? dirname(home);
+  const githubScanDir = options.githubScanDir ?? process.env.GITHUB_SCAN_DIR ?? dirname(home);
   const profile = options.profile ?? parseProfile(argv) ?? "default";
   const config = loadGitHubScanDaemonConfig();
 
@@ -74,9 +71,7 @@ export async function runStart(
   try {
     identity = resolveDaemonIdentity({ host: config.host });
   } catch (err) {
-    write(
-      `github-scan: start failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    write(`github-scan: start failed: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 
@@ -101,18 +96,10 @@ export async function runStart(
       home: options.runnerHome ?? parseHome(argv),
       profile: options.profile ?? parseProfile(argv),
     });
-    write(
-      `github-scan: daemon already running (pid ${existingLock.pid}).`,
-    );
-    write(
-      "  The live daemon's --allow-repo list is baked in at start time and",
-    );
-    write(
-      "  will not update if you edit ~/.first-tree/github-scan/config.yaml or re-run `start`.",
-    );
-    write(
-      `  Run \`${stopCmd}\` first, then re-run \`start\` with the`,
-    );
+    write(`github-scan: daemon already running (pid ${existingLock.pid}).`);
+    write("  The live daemon's --allow-repo list is baked in at start time and");
+    write("  will not update if you edit ~/.first-tree/github-scan/config.yaml or re-run `start`.");
+    write(`  Run \`${stopCmd}\` first, then re-run \`start\` with the`);
     write("  full --allow-repo csv.");
     return 1;
   }
@@ -125,8 +112,12 @@ export async function runStart(
   const self = resolveSelfCliInvocation(options.entrypoint);
   const executable = options.executable ?? self.executable;
   const daemonArgs =
-    options.daemonArgs ??
-    defaultDaemonArgs(argv, options.executable ? [] : self.prefixArgs);
+    options.daemonArgs ?? defaultDaemonArgs(argv, options.executable ? [] : self.prefixArgs);
+
+  // Capture cwd eagerly (before any other logic might chdir).
+  // launchd otherwise spawns the daemon from `/`, which fails the
+  // bound-tree check in the daemon's startup. See #380.
+  const workingDirectory = options.workingDirectory ?? process.cwd();
 
   if (supportsLaunchd()) {
     try {
@@ -137,6 +128,7 @@ export async function runStart(
         executable,
         arguments: daemonArgs,
         logPath,
+        workingDirectory,
         env: {
           GITHUB_SCAN_DIR: githubScanDir,
           GITHUB_SCAN_HOME: home,
@@ -178,10 +170,7 @@ export async function runStart(
  * the user targets the same runner instead of silently stopping the
  * default one.
  */
-function formatStopCommand(opts: {
-  home?: string;
-  profile?: string;
-}): string {
+function formatStopCommand(opts: { home?: string; profile?: string }): string {
   const parts = ["first-tree github scan stop"];
   if (opts.home) parts.push(`--home ${shellQuote(opts.home)}`);
   if (opts.profile && opts.profile !== "default") {
@@ -218,10 +207,21 @@ function parseProfile(argv: readonly string[]): string | undefined {
  * through to the foreground daemon entrypoint. We also drop
  * `--home`/`--profile` because those are interpreted by this command
  * and may differ from the daemon's own resolution.
+ *
+ * When `--tree-repo` was supplied to the foreground `start` invocation,
+ * the umbrella CLI strips it from argv and surfaces it via the
+ * `FIRST_TREE_GITHUB_SCAN_TREE_REPO` env var. The launchd-spawned
+ * daemon does not inherit that env var (and even if it did, the
+ * umbrella's own binding gate doesn't consult it — it re-parses
+ * `--tree-repo` from argv), so the spawned daemon would fail the
+ * bound-tree check. Re-inject `--tree-repo` into the daemon argv so the
+ * background process re-runs the same binding resolution the foreground
+ * process did. See #380 round 2.
  */
 export function defaultDaemonArgs(
   argv: readonly string[],
   prefixArgs: readonly string[] = [],
+  env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   // The daemon is re-entered through the umbrella CLI as
   // `first-tree github scan daemon --backend=ts`.
@@ -237,5 +237,8 @@ export function defaultDaemonArgs(
     if (a.startsWith("--home=") || a.startsWith("--profile=")) continue;
     forwarded.push(a);
   }
-  return [...prefixArgs, "github", "scan", "daemon", "--backend=ts", ...forwarded];
+  const treeRepoBinding = env.FIRST_TREE_GITHUB_SCAN_TREE_REPO;
+  const treeRepoArgs =
+    treeRepoBinding && treeRepoBinding.length > 0 ? ["--tree-repo", treeRepoBinding] : [];
+  return [...prefixArgs, "github", "scan", "daemon", "--backend=ts", ...treeRepoArgs, ...forwarded];
 }

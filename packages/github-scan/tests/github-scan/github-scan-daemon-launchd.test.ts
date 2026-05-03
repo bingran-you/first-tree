@@ -63,9 +63,7 @@ describe("renderLaunchdPlist", () => {
     expect(xml).toContain("<key>KeepAlive</key>");
     expect(xml).toContain("<true/>");
     expect(xml).toContain("<key>RunAtLoad</key>");
-    expect(xml).toContain(
-      "<string>/usr/local/bin/github-scan</string>",
-    );
+    expect(xml).toContain("<string>/usr/local/bin/github-scan</string>");
     expect(xml).toContain("<string>daemon</string>");
     expect(xml).toContain("<string>--backend=ts</string>");
     expect(xml).toContain("<string>/tmp/github-scan.log</string>");
@@ -87,6 +85,59 @@ describe("renderLaunchdPlist", () => {
       loginShellVars: noLoginShell,
     });
     expect(xml).toContain("hello &lt;world&gt; &amp; &apos;friends&apos;");
+  });
+
+  it("emits WorkingDirectory when caller supplies a cwd (#380)", () => {
+    const xml = renderLaunchdPlist({
+      login: "alice",
+      profile: "default",
+      executable: "/usr/local/bin/github-scan",
+      arguments: ["daemon"],
+      logPath: "/tmp/github-scan.log",
+      workingDirectory: "/Users/alice/first-tree-website",
+      env: { PATH: "/opt/bin", HOME: "/Users/alice" },
+      resolveEnvVar: noResolve,
+      loginShellVars: noLoginShell,
+    });
+    expect(xml).toContain("<key>WorkingDirectory</key>");
+    expect(xml).toContain("<string>/Users/alice/first-tree-website</string>");
+    // Order: WorkingDirectory should sit between EnvironmentVariables and
+    // StandardOutPath (matches the manual workaround users have been
+    // applying client-side).
+    const wdIdx = xml.indexOf("<key>WorkingDirectory</key>");
+    const envIdx = xml.indexOf("<key>EnvironmentVariables</key>");
+    const outIdx = xml.indexOf("<key>StandardOutPath</key>");
+    expect(envIdx).toBeLessThan(wdIdx);
+    expect(wdIdx).toBeLessThan(outIdx);
+  });
+
+  it("XML-escapes special characters inside WorkingDirectory (#380)", () => {
+    const xml = renderLaunchdPlist({
+      login: "alice",
+      profile: "default",
+      executable: "/usr/local/bin/github-scan",
+      arguments: ["daemon"],
+      logPath: "/tmp/github-scan.log",
+      workingDirectory: "/Users/alice/weird & <path>",
+      env: { PATH: "/a", HOME: "/b" },
+      resolveEnvVar: noResolve,
+      loginShellVars: noLoginShell,
+    });
+    expect(xml).toContain("<string>/Users/alice/weird &amp; &lt;path&gt;</string>");
+  });
+
+  it("omits WorkingDirectory when caller does not supply one", () => {
+    const xml = renderLaunchdPlist({
+      login: "alice",
+      profile: "default",
+      executable: "/usr/local/bin/github-scan",
+      arguments: ["daemon"],
+      logPath: "/tmp/github-scan.log",
+      env: { PATH: "/a", HOME: "/b" },
+      resolveEnvVar: noResolve,
+      loginShellVars: noLoginShell,
+    });
+    expect(xml).not.toContain("<key>WorkingDirectory</key>");
   });
 
   it("includes discovered provider auth env vars beyond the static allowlist", () => {
@@ -142,9 +193,7 @@ describe("start command self-invocation helpers", () => {
 
   it("prepends the cli entrypoint before the daemon args", () => {
     expect(
-      defaultDaemonArgs(["--allow-repo", "owner/repo"], [
-        "/opt/github-scan/dist/cli.mjs",
-      ]),
+      defaultDaemonArgs(["--allow-repo", "owner/repo"], ["/opt/github-scan/dist/cli.mjs"]),
     ).toEqual([
       "/opt/github-scan/dist/cli.mjs",
       "github",

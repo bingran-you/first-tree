@@ -29,6 +29,12 @@ export interface LaunchdPlistInputs {
   arguments: readonly string[];
   /** File to receive stdout + stderr. */
   logPath: string;
+  /**
+   * Absolute path to set as the launchd job's `WorkingDirectory`. Without
+   * this, launchd spawns the daemon in `/`, which fails the bound-tree
+   * check and the daemon exits silently. See #380.
+   */
+  workingDirectory?: string;
   /** Extra env variables (HOME / PATH are added automatically). */
   env?: Record<string, string | undefined>;
   /**
@@ -81,9 +87,7 @@ export function launchdDomain(): string {
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.status !== 0) {
-    throw new Error(
-      `resolve user id for launchd failed: ${result.stderr?.trim() ?? ""}`,
-    );
+    throw new Error(`resolve user id for launchd failed: ${result.stderr?.trim() ?? ""}`);
   }
   const uid = (result.stdout ?? "").split("\n")[0]?.trim();
   if (!uid) throw new Error("could not resolve numeric user id for launchd");
@@ -137,11 +141,10 @@ export function resolveLaunchdEnvVar(
   const direct = env[variable];
   if (direct && direct.trim().length > 0) return direct;
   try {
-    const result = spawnSync(
-      "/bin/zsh",
-      ["-lc", `printf '%s' "\${${variable}:-}"`],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
+    const result = spawnSync("/bin/zsh", ["-lc", `printf '%s' "\${${variable}:-}"`], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     if (result.status !== 0) return undefined;
     const value = result.stdout ?? "";
     if (value.trim().length === 0) return undefined;
@@ -183,10 +186,7 @@ export function collectLaunchdPassthroughEnvVars(
 ): string[] {
   const ordered = [...PASSTHROUGH_ENV_VARS];
   const seen = new Set<string>(ordered);
-  const candidates = [
-    ...Object.keys(env),
-    ...loginShellVars,
-  ].filter(matchesPassthroughPrefix);
+  const candidates = [...Object.keys(env), ...loginShellVars].filter(matchesPassthroughPrefix);
   for (const variable of candidates.sort()) {
     if (seen.has(variable)) continue;
     ordered.push(variable);
@@ -248,6 +248,14 @@ export function renderLaunchdPlist(inputs: LaunchdPlistInputs): string {
     )
     .join("\n");
 
+  // launchd jobs default to cwd `/`, which breaks the daemon's bound-tree
+  // check (#380). When the caller passes an absolute working directory,
+  // emit it between `EnvironmentVariables` and `StandardOutPath`.
+  const workingDirectoryXml =
+    inputs.workingDirectory && inputs.workingDirectory.length > 0
+      ? `  <key>WorkingDirectory</key>\n  <string>${escapeXml(inputs.workingDirectory)}</string>\n`
+      : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -266,7 +274,7 @@ ${argumentsXml}
   <dict>
 ${environmentXml}
   </dict>
-  <key>StandardOutPath</key>
+${workingDirectoryXml}  <key>StandardOutPath</key>
   <string>${escapeXml(inputs.logPath)}</string>
   <key>StandardErrorPath</key>
   <string>${escapeXml(inputs.logPath)}</string>
@@ -282,6 +290,12 @@ export interface BootstrapLaunchdJobOptions {
   executable: string;
   arguments: readonly string[];
   logPath: string;
+  /**
+   * Absolute path the launchd job should `cd` into before exec. Required
+   * for the daemon's bound-tree check (#380). Optional for backwards
+   * compatibility with callers that haven't been updated yet.
+   */
+  workingDirectory?: string;
   env?: Record<string, string | undefined>;
 }
 
@@ -309,6 +323,7 @@ export function bootstrapLaunchdJob(
       executable: options.executable,
       arguments: options.arguments,
       logPath: options.logPath,
+      workingDirectory: options.workingDirectory,
       env: options.env,
     }),
   );
@@ -319,11 +334,10 @@ export function bootstrapLaunchdJob(
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  const bootstrap = spawnSync(
-    "launchctl",
-    ["bootstrap", domain, plistPath],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-  );
+  const bootstrap = spawnSync("launchctl", ["bootstrap", domain, plistPath], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   if (bootstrap.status !== 0) {
     throw new Error(
       `launchctl bootstrap failed (exit ${bootstrap.status}): ${bootstrap.stderr?.trim() ?? ""}`,
@@ -331,11 +345,10 @@ export function bootstrapLaunchdJob(
   }
 
   const target = `${domain}/${label}`;
-  const kickstart = spawnSync(
-    "launchctl",
-    ["kickstart", "-k", target],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-  );
+  const kickstart = spawnSync("launchctl", ["kickstart", "-k", target], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   // 113 means the job is already running; launchctl returns that when
   // kickstart is racing with RunAtLoad. Treat as success.
   if (kickstart.status !== 0 && kickstart.status !== 113) {
